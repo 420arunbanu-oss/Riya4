@@ -145,6 +145,8 @@ public class RapidoAutoClickService extends AccessibilityService {
         }
 
         return clicked;
+    }
+
     private boolean clickXY(float x, float y) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Path path = new Path();
