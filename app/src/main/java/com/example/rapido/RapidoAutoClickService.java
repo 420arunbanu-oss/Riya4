@@ -6,252 +6,356 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.view.accessibility.AccessibilityWindowInfo;
+import org.json.JSONArray;
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class RapidoAutoClickService extends AccessibilityService {
 
     public static boolean isServiceRunning = false;
-    private SharedPreferences prefs;
-    private long lastClickTime = 0L;
+    public static boolean isAutoAcceptOn = false;
+
+    private SharedPreferences storage;
+    private ExecutorService scanExecutor;
+    private AtomicBoolean isScanning = new AtomicBoolean(false);
+    private Handler mainHandler;
+    private long lastAcceptTime = 0L;
 
     @Override
     public void onServiceConnected() {
         super.onServiceConnected();
-        prefs = getSharedPreferences("rapido_auto_prefs", Context.MODE_PRIVATE);
         isServiceRunning = true;
+        storage = getSharedPreferences("PREMIUM_LOGIN_DATA", Context.MODE_PRIVATE);
+        isAutoAcceptOn = storage.getBoolean("isRunning", false);
+        scanExecutor = Executors.newSingleThreadExecutor();
+        mainHandler = new Handler(Looper.getMainLooper());
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         isServiceRunning = false;
+        isAutoAcceptOn = false;
+        if (scanExecutor != null) {
+            scanExecutor.shutdownNow();
+        }
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
-        if (prefs == null) {
-            prefs = getSharedPreferences("rapido_auto_prefs", Context.MODE_PRIVATE);
+        if (storage == null) {
+            storage = getSharedPreferences("PREMIUM_LOGIN_DATA", Context.MODE_PRIVATE);
         }
 
-        boolean isEnabled = prefs.getBoolean("is_auto_accept_on", true);
-        if (!isEnabled) return;
+        // Fast state check
+        if (!isAutoAcceptOn && !storage.getBoolean("isRunning", false)) return;
+
+        CharSequence pkg = event.getPackageName();
+        if (pkg == null) return;
+        String pkgStr = pkg.toString().toLowerCase();
+
+        // Instant package filter: Only Rapido or Ola packages
+        if (!pkgStr.contains("rapido") && !pkgStr.contains("ola")) {
+            return;
+        }
 
         long now = System.currentTimeMillis();
-        if (now - lastClickTime < 500) return;
+        if (now - lastAcceptTime < 600) return;
 
-        // 1. Scan event.getSource() - direct node that triggered notification/order popup
-        AccessibilityNodeInfo sourceNode = event.getSource();
-        if (sourceNode != null) {
-            if (handleRapidoOffer(sourceNode)) {
-                lastClickTime = now;
-                vibratePhone();
-                return;
+        // Prevent queue buildup: if scan is currently running in background, skip!
+        if (isScanning.get()) return;
+
+        // Run scanning strictly on background worker thread -> ZERO MAIN THREAD ANR!
+        scanExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (!isScanning.compareAndSet(false, true)) return;
+                try {
+                    processOrderScan();
+                } catch (Exception ignored) {
+                } finally {
+                    isScanning.set(false);
+                }
+            }
+        });
+    }
+
+    private void processOrderScan() {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return;
+
+        // AutoX.js Box 09 Logic:
+        // 1. Detect Ride Offer
+        boolean hasOrder = hasTextOrDesc(root, "Auto") ||
+                hasTextOrDesc(root, "Bike") ||
+                hasTextOrDesc(root, "Cab") ||
+                hasTextOrDesc(root, "OLA") ||
+                hasTextOrDesc(root, "Ola") ||
+                hasTextOrDesc(root, "ACCEPT IN") ||
+                hasTextOrDesc(root, "Accept");
+
+        if (!hasOrder) return;
+
+        // 2. Extract Price
+        String priceText = findNodeTextWithSymbol(root, "₹");
+        int basePrice = 0;
+        int tipPrice = 0;
+        int totalPrice = 0;
+        String priceDisplayStr = "Rs. 0";
+
+        if (!priceText.isEmpty()) {
+            Pattern multiPattern = Pattern.compile("₹?\\s*(\\d+)\\s*\\+\\s*₹?\\s*(\\d+)");
+            Matcher mMulti = multiPattern.matcher(priceText);
+            if (mMulti.find()) {
+                basePrice = Integer.parseInt(mMulti.group(1));
+                tipPrice = Integer.parseInt(mMulti.group(2));
+                totalPrice = basePrice + tipPrice;
+                priceDisplayStr = "Rs. " + basePrice + " + Rs. " + tipPrice;
+            } else {
+                Pattern singlePattern = Pattern.compile("₹?\\s*(\\d+)");
+                Matcher mSingle = singlePattern.matcher(priceText);
+                if (mSingle.find()) {
+                    basePrice = Integer.parseInt(mSingle.group(1));
+                    totalPrice = basePrice;
+                    priceDisplayStr = "Rs. " + basePrice;
+                }
             }
         }
 
-        // 2. Scan all active windows (crucial while watching video / YouTube where Rapido is an overlay or notification)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                List<AccessibilityWindowInfo> windows = getWindows();
-                if (windows != null) {
-                    for (AccessibilityWindowInfo window : windows) {
-                        if (window != null) {
-                            AccessibilityNodeInfo winRoot = window.getRoot();
-                            if (winRoot != null) {
-                                if (handleRapidoOffer(winRoot)) {
-                                    lastClickTime = now;
-                                    vibratePhone();
-                                    return;
-                                }
-                            }
-                        }
-                    }
+        int minPrice = storage.getInt("minPrice", 40);
+        int maxPrice = storage.getInt("maxPrice", 10000);
+        boolean usePriceFilter = storage.getBoolean("usePriceFilter", false);
+        boolean useSkipBelowMin = storage.getBoolean("useSkipBelowMin", false);
+        boolean allowPricePermission = storage.getBoolean("allow_price_perm", true);
+        boolean useAreaFilter = storage.getBoolean("useAreaFilter", false);
+        boolean allowAreaPermission = storage.getBoolean("allow_area_perm", true);
+
+        // 3. Skip Order Below Min Price (AutoX.js Logic)
+        if (useSkipBelowMin && allowPricePermission && basePrice > 0 && basePrice < minPrice) {
+            AccessibilityNodeInfo skipBtn = findSkipButton(root);
+            if (skipBtn != null) {
+                Rect b = new Rect();
+                skipBtn.getBoundsInScreen(b);
+                if (b.width() > 0) {
+                    clickXY(b.centerX(), b.centerY());
+                    skipBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    try { Thread.sleep(600); } catch (Exception ignored) {}
+                    return;
                 }
-            } catch (Exception ignored) {}
+            }
         }
 
-        // 3. Fallback to active window root
-        AccessibilityNodeInfo rootNode = getRootInActiveWindow();
-        if (rootNode != null) {
-            if (handleRapidoOffer(rootNode)) {
-                lastClickTime = now;
-                vibratePhone();
+        // 4. Price Condition
+        boolean priceConditionMet = true;
+        if (usePriceFilter && allowPricePermission) {
+            priceConditionMet = (basePrice >= minPrice && basePrice <= maxPrice);
+        }
+        if (!priceConditionMet) return;
+
+        // 5. Area Condition (AutoX.js Logic)
+        boolean areaConditionMet = true;
+        String matchedAreaName = "General";
+        String foundDropKm = "--";
+
+        if (useAreaFilter && allowAreaPermission) {
+            List<String> areasToCheck = loadSelectedAreas();
+            if (!areasToCheck.isEmpty()) {
+                DropAreaResult areaRes = checkDropArea(root, areasToCheck);
+                areaConditionMet = areaRes.matched;
+                matchedAreaName = areaRes.areaName;
+                foundDropKm = areaRes.dropKm;
+            }
+        }
+
+        if (!areaConditionMet) return;
+
+        // 6. Find and Click Accept Button
+        AccessibilityNodeInfo acceptBtn = findAcceptButton(root);
+        if (acceptBtn != null) {
+            Rect b = new Rect();
+            acceptBtn.getBoundsInScreen(b);
+            if (b.width() > 0 && b.height() > 0) {
+                // Hardware 1ms touch gesture
+                clickXY(b.centerX(), b.centerY());
+                // Accessibility action
+                acceptBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+
+                // If wide slider bar, swipe across
+                CharSequence txt = acceptBtn.getText();
+                CharSequence desc = acceptBtn.getContentDescription();
+                String full = ((txt != null ? txt.toString() : "") + " " + (desc != null ? desc.toString() : "")).toLowerCase();
+                if (full.contains("slide") || full.contains("swipe") || b.width() > 380) {
+                    swipeXY(b.left + 50, b.centerY(), b.right - 50, b.centerY());
+                }
+
+                lastAcceptTime = System.currentTimeMillis();
+
+                // Sound / Beep Notification
+                playBeepOrVibrate();
+
+                // Update Stats in Storage
+                int oldEarn = storage.getInt("today_earnings", 0);
+                int oldCount = storage.getInt("today_orders_count", 0);
+                Calendar cal = Calendar.getInstance();
+                int h = cal.get(Calendar.HOUR);
+                if (h == 0) h = 12;
+                int m = cal.get(Calendar.MINUTE);
+                String ampm = cal.get(Calendar.AM_PM) == Calendar.AM ? "AM" : "PM";
+                String timeStr = h + ":" + (m < 10 ? "0" + m : m) + " " + ampm;
+
+                storage.edit()
+                        .putInt("today_earnings", oldEarn + totalPrice)
+                        .putInt("today_orders_count", oldCount + 1)
+                        .putString("last_order_price", priceDisplayStr)
+                        .putString("last_order_area", matchedAreaName + " (" + foundDropKm + ")")
+                        .putString("last_order_time", timeStr)
+                        .apply();
+
+                MainActivity.syncStaticUI();
+                try { Thread.sleep(400); } catch (Exception ignored) {}
             }
         }
     }
 
-    private boolean handleRapidoOffer(AccessibilityNodeInfo root) {
+    private boolean hasTextOrDesc(AccessibilityNodeInfo root, String query) {
         if (root == null) return false;
-
-        // Priority 1: Specific Rapido Captain Accept View IDs
-        String[] viewIds = new String[] {
-            "com.rapido.captain:id/btn_accept",
-            "com.rapido.captain:id/accept_order_btn",
-            "com.rapido.captain:id/btnAccept",
-            "com.rapido.captain:id/accept_button",
-            "com.rapido.captain:id/primary_action",
-            "com.rapido.captain:id/btn_ride_accept",
-            "com.rapido.captain:id/layout_accept",
-            "com.rapido.captain:id/acceptButton",
-            "com.rapido.captain:id/slide_accept",
-            "com.rapido.captain:id/swipe_accept",
-            "com.rapido.captain:id/btn_action",
-            "com.rapido.captain:id/action_button",
-            "com.rapido.rider:id/btn_accept",
-            "btn_accept",
-            "accept_order_btn",
-            "accept_button"
-        };
-        for (String id : viewIds) {
-            List<AccessibilityNodeInfo> idNodes = root.findAccessibilityNodeInfosByViewId(id);
-            if (idNodes != null && !idNodes.isEmpty()) {
-                for (AccessibilityNodeInfo node : idNodes) {
-                    if (node != null && triggerAccept(node)) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // Priority 2: Exact Accept button text labels in English & Tamil
-        String[] acceptKeywords = new String[] {
-            "Accept",
-            "ACCEPT",
-            "Accept Order",
-            "ACCEPT ORDER",
-            "Accept Ride",
-            "ACCEPT RIDE",
-            "Tap to accept",
-            "TAP TO ACCEPT",
-            "Slide to accept",
-            "SLIDE TO ACCEPT",
-            "Swipe to accept",
-            "SWIPE TO ACCEPT",
-            "ஏற்றுக்கொள்",
-            "ஏற்கவும்",
-            "स्वीकार करें",
-            "स्वीकार",
-            "CONFIRM",
-            "Confirm"
-        };
-        for (String kw : acceptKeywords) {
-            List<AccessibilityNodeInfo> textNodes = root.findAccessibilityNodeInfosByText(kw);
-            if (textNodes != null && !textNodes.isEmpty()) {
-                for (AccessibilityNodeInfo btn : textNodes) {
-                    if (btn != null && triggerAccept(btn)) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // Priority 3: Deep recursive search to find exact button or custom slider matching Accept criteria
-        AccessibilityNodeInfo recursiveMatch = findAcceptNodeRecursive(root, 0);
-        if (recursiveMatch != null) {
-            if (triggerAccept(recursiveMatch)) {
-                return true;
-            }
-        }
-
-        return false;
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(query);
+        return nodes != null && !nodes.isEmpty();
     }
 
-    private AccessibilityNodeInfo findAcceptNodeRecursive(AccessibilityNodeInfo node, int depth) {
-        if (node == null || depth > 8) return null;
-        if (isAcceptCandidate(node)) {
-            return node;
+    private String findNodeTextWithSymbol(AccessibilityNodeInfo root, String symbol) {
+        if (root == null) return "";
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(symbol);
+        if (nodes != null) {
+            for (AccessibilityNodeInfo n : nodes) {
+                if (n.getText() != null && n.getText().toString().contains(symbol)) {
+                    return n.getText().toString();
+                }
+                if (n.getContentDescription() != null && n.getContentDescription().toString().contains(symbol)) {
+                    return n.getContentDescription().toString();
+                }
+            }
         }
-        int count = node.getChildCount();
-        for (int i = 0; i < count; i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            if (child != null) {
-                AccessibilityNodeInfo found = findAcceptNodeRecursive(child, depth + 1);
-                if (found != null) return found;
+        return "";
+    }
+
+    private AccessibilityNodeInfo findSkipButton(AccessibilityNodeInfo root) {
+        List<AccessibilityNodeInfo> minusNodes = root.findAccessibilityNodeInfosByText("-");
+        if (minusNodes != null && !minusNodes.isEmpty()) {
+            return minusNodes.get(0);
+        }
+        List<AccessibilityNodeInfo> skipNodes = root.findAccessibilityNodeInfosByText("Reject");
+        if (skipNodes != null && !skipNodes.isEmpty()) {
+            return skipNodes.get(0);
+        }
+        return null;
+    }
+
+    private AccessibilityNodeInfo findAcceptButton(AccessibilityNodeInfo root) {
+        // View ID check
+        String[] ids = new String[] {
+                "com.rapido.captain:id/btn_accept",
+                "com.rapido.captain:id/accept_order_btn",
+                "com.rapido.captain:id/btnAccept",
+                "com.rapido.captain:id/primary_action",
+                "btn_accept"
+        };
+        for (String id : ids) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
+            if (nodes != null && !nodes.isEmpty()) {
+                return nodes.get(0);
+            }
+        }
+
+        // Text check
+        String[] keywords = new String[] { "ACCEPT IN", "ACCEPT", "Accept", "ஏற்றுக்கொள்", "Tap to accept", "Slide to accept" };
+        for (String kw : keywords) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(kw);
+            if (nodes != null && !nodes.isEmpty()) {
+                for (AccessibilityNodeInfo n : nodes) {
+                    if (n.isClickable()) return n;
+                    if (n.getParent() != null && n.getParent().isClickable()) return n.getParent();
+                    return n;
+                }
             }
         }
         return null;
     }
 
-    private boolean isAcceptCandidate(AccessibilityNodeInfo node) {
-        CharSequence textSeq = node.getText();
-        CharSequence descSeq = node.getContentDescription();
-        String t = (textSeq != null ? textSeq.toString() : "").trim().toLowerCase();
-        String d = (descSeq != null ? descSeq.toString() : "").trim().toLowerCase();
-
-        // Safety: Exclude reject, decline, cancel
-        if (t.contains("reject") || t.contains("decline") || t.contains("cancel") || t.contains("skip") || t.contains("ignore")) return false;
-        if (d.contains("reject") || d.contains("decline") || d.contains("cancel") || d.contains("skip") || d.contains("ignore")) return false;
-
-        if (t.equals("accept") || t.startsWith("accept") || t.contains("tap to accept") || t.contains("slide to accept") ||
-            t.contains("swipe to accept") || t.contains("ஏற்றுக்கொள்") || t.contains("ஏற்கவும்") || t.contains("स्वीकार")) {
-            return true;
-        }
-
-        if (d.equals("accept") || d.startsWith("accept") || d.contains("tap to accept") || d.contains("slide to accept") ||
-            d.contains("swipe to accept") || d.contains("ஏற்றுக்கொள்") || d.contains("ஏற்கவும்") || d.contains("स्वीकार")) {
-            return true;
-        }
-
-        return false;
+    private List<String> loadSelectedAreas() {
+        List<String> list = new ArrayList<>();
+        try {
+            String json = storage.getString("selectedAreasJson", "[]");
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                String a = arr.optString(i).trim();
+                if (!a.isEmpty()) list.add(a);
+            }
+        } catch (Exception ignored) {}
+        return list;
     }
 
-    private boolean triggerAccept(AccessibilityNodeInfo btn) {
-        if (btn == null) return false;
+    private static class DropAreaResult {
+        boolean matched;
+        String areaName;
+        String dropKm;
+        DropAreaResult(boolean m, String a, String k) {
+            matched = m; areaName = a; dropKm = k;
+        }
+    }
 
-        Rect rect = new Rect();
-        btn.getBoundsInScreen(rect);
+    private DropAreaResult checkDropArea(AccessibilityNodeInfo root, List<String> areasToCheck) {
+        String dropKm = "--";
+        String matchedArea = "";
+        boolean isMatched = false;
+        StringBuilder fullText = new StringBuilder();
 
-        // Safety: Node must have real on-screen dimensions
-        if (rect.width() <= 0 || rect.height() <= 0) return false;
+        collectAllText(root, fullText);
+        String lower = fullText.toString().toLowerCase();
 
-        // 1. Accessibility click on button or closest clickable parent button container
-        boolean clicked = false;
-        if (btn.isClickable() && btn.isEnabled()) {
-            clicked = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        // Match distance
+        Pattern distPattern = Pattern.compile("(\\d+(\\.\\d+)?)\\s*(km|m)", Pattern.CASE_INSENSITIVE);
+        Matcher mDist = distPattern.matcher(fullText);
+        if (mDist.find()) {
+            dropKm = mDist.group(0);
         }
 
-        if (!clicked) {
-            AccessibilityNodeInfo parent = btn.getParent();
-            int depth = 0;
-            while (parent != null && depth < 3) {
-                Rect pRect = new Rect();
-                parent.getBoundsInScreen(pRect);
-                // Must be a button container (height < 300), not the full card or entire screen
-                if (parent.isClickable() && pRect.height() < 300) {
-                    clicked = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    break;
-                }
-                parent = parent.getParent();
-                depth++;
+        for (String a : areasToCheck) {
+            String clean = a.trim();
+            if (!clean.isEmpty() && lower.contains(clean.toLowerCase())) {
+                matchedArea = clean;
+                isMatched = true;
+                break;
             }
         }
+        return new DropAreaResult(isMatched, matchedArea, dropKm);
+    }
 
-        // 2. Hardware Touch Gesture Click at exact (X, Y) center of the button!
-        // Directly triggers the touch hardware layer even if accessibility click is intercepted
-        float clickX = (float) rect.centerX();
-        float clickY = (float) rect.centerY();
-        boolean gestureOk = clickXY(clickX, clickY);
-        if (gestureOk) clicked = true;
-
-        // 3. Slider Support: If button is a "Slide to accept" or "Swipe to accept" slider
-        CharSequence textSeq = btn.getText();
-        CharSequence descSeq = btn.getContentDescription();
-        String combined = ((textSeq != null ? textSeq.toString() : "") + " " + (descSeq != null ? descSeq.toString() : "")).toLowerCase();
-        if (combined.contains("slide") || combined.contains("swipe") || rect.width() > 350) {
-            float startX = rect.left + (rect.width() * 0.15f);
-            float endX = rect.left + (rect.width() * 0.85f);
-            swipeXY(startX, clickY, endX, clickY);
+    private void collectAllText(AccessibilityNodeInfo node, StringBuilder sb) {
+        if (node == null) return;
+        if (node.getText() != null) sb.append(" ").append(node.getText());
+        if (node.getContentDescription() != null) sb.append(" ").append(node.getContentDescription());
+        int count = node.getChildCount();
+        for (int i = 0; i < count; i++) {
+            collectAllText(node.getChild(i), sb);
         }
-
-        return clicked;
     }
 
     private boolean clickXY(float x, float y) {
@@ -277,20 +381,23 @@ public class RapidoAutoClickService extends AccessibilityService {
         return false;
     }
 
-    private void vibratePhone() {
+    private void playBeepOrVibrate() {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                VibratorManager vibratorManager = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
-                if (vibratorManager != null && vibratorManager.getDefaultVibrator() != null) {
-                    vibratorManager.getDefaultVibrator().vibrate(VibrationEffect.createOneShot(180, VibrationEffect.DEFAULT_AMPLITUDE));
+            ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100);
+            tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 350);
+        } catch (Exception e) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+                    if (vm != null && vm.getDefaultVibrator() != null) {
+                        vm.getDefaultVibrator().vibrate(VibrationEffect.createOneShot(180, VibrationEffect.DEFAULT_AMPLITUDE));
+                    }
+                } else {
+                    Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                    if (v != null) v.vibrate(180);
                 }
-            } else {
-                Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-                if (vibrator != null) {
-                    vibrator.vibrate(180);
-                }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override

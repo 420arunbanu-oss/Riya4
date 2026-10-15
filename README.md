@@ -1,13 +1,10 @@
-# Rapido Fast Auto Clicker (100% Free Open Source)
+# Nura Rapido & Ola Auto Clicker Pro v48.0 (100% Free Open Source)
 
-வீடியோ பார்த்துக் கொண்டிருக்கும் போதும், வாட்ஸ்அப்பில் இருக்கும் போதும் Rapido கேப்டன் ஆப்பில் ஆர்டர் வந்த உடனே 0.1 நொடியில் தானாக கிளிக் செய்து ஏற்கும் எளிய ஆப்.
+Ultra-speed auto-accept engine for Rapido Captain & Ola Partner with real-time Firebase licensing, payment gateway redirect, custom area filtering, price filtering, and background floating bubble.
 
-## சிறப்பம்சங்கள்:
-1. **எந்த கட்டணமும் இல்லை (100% Free Open Source)**
-2. **பின்னணியில் தொடர்ந்து இயங்கும் (Foreground Service)**: யூடியூப் அல்லது வீடியோ பார்த்துக் கொண்டிருந்தாலும் ஆப் தூங்காமல் தொடர்ந்து இயங்கும்.
-3. **துல்லியமான Accept பட்டன் கிளிக்**: Rupee ₹ அல்லது வேறு பகுதிகளைத் தவறாகக் கிளிக் செய்யாமல், பச்சை நிற "Accept" / "ஏற்றுக்கொள்" பட்டன் மற்றும் ஸ்லைடரை மட்டும் 0.1 நொடியில் துல்லியமாகத் தொடும்.
-4. **மிதக்கும் சுவிட்ச் (Floating Switch)**: யூடியூப் அல்லது வீடியோவின் மேல் மிதந்து கொண்டிருக்கும், அங்கேயே தொட்டு ஆன்/ஆஃப் செய்து கொள்ளலாம்.
-5. **1ms (X, Y) பவுன்ஸ் கிளிக் & ஸ்வைப்பர்**: பட்டனின் (X, Y) திரைப் புள்ளிகளைக் கணக்கிட்டு 1 மில்லிசெகண்டில் மனித விரல் போல தொட்டு ஏற்கும்.
-
-## GitHub Actions மூலம் பில்ட் செய்வது எப்படி:
-Push செய்த உடனே GitHub Actions 100% Green Ticks உடன் `Rapido-AutoClicker-Free.apk` ஃபைலை இலவசமாக பில்ட் செய்து தந்துவிடும்!
+## Features:
+1. **Zero ANR Background Processing**: All scanning executes asynchronously on an optimized background thread, completely preventing "App isn't responding" dialogs.
+2. **Multi-Window Scanning**: Accepts orders instantaneously (0.01s) even while watching YouTube, playing videos, or using WhatsApp.
+3. **Exact AutoX.js Logic**: Includes 1-Day Demo account creation, Firebase Realtime Database sync, device ID binding, remote kill switch, and license expiry watcher.
+4. **Price & Area Filtering**: Filter rides by minimum/maximum price, skip orders below minimum price, and whitelist destination areas.
+5. **Persistent Foreground Service**: Keeps service alive in background with persistent notification and CPU WakeLock.

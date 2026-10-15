@@ -26,7 +26,7 @@ public class FloatingSwitchService extends Service {
 
     private WindowManager windowManager;
     private TextView floatingView;
-    private SharedPreferences prefs;
+    private SharedPreferences storage;
     private PowerManager.WakeLock wakeLock;
 
     @Override
@@ -37,13 +37,13 @@ public class FloatingSwitchService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        prefs = getSharedPreferences("rapido_auto_prefs", Context.MODE_PRIVATE);
+        storage = getSharedPreferences("PREMIUM_LOGIN_DATA", Context.MODE_PRIVATE);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
-        // Keep CPU active in background while user watches videos/YouTube
+        // Keep CPU awake in background so video watching never sleeps order scanner
         acquireWakeLock();
 
-        // Start Foreground Service with persistent ongoing status notification
+        // Start Foreground Service with persistent status notification
         startForegroundServiceWithNotification();
 
         // Create draggable floating bubble overlay
@@ -78,7 +78,7 @@ public class FloatingSwitchService extends Service {
 
     private void startForegroundServiceWithNotification() {
         try {
-            boolean isEnabled = prefs != null && prefs.getBoolean("is_auto_accept_on", true);
+            boolean isRunning = storage != null && storage.getBoolean("isRunning", false);
 
             Notification.Builder builder;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -111,8 +111,8 @@ public class FloatingSwitchService extends Service {
 
             Notification notification = builder
                     .setSmallIcon(iconRes)
-                    .setContentTitle("⚡ Rapido Auto Clicker: " + (isEnabled ? "ON (இயங்குகிறது)" : "OFF (இடைநிறுத்தப்பட்டது)"))
-                    .setContentText(isEnabled ? "வீடியோ பார்க்கும் போதும் பின்னணியில் ஆர்டர்களை ஏற்கும்" : "மிதக்கும் சுவிட்சைத் தொட்டு ஆன் செய்யவும்")
+                    .setContentTitle("⚡ Nura Auto Clicker: " + (isRunning ? "ONLINE (இயங்குகிறது)" : "OFFLINE (நிறுத்தப்பட்டது)"))
+                    .setContentText(isRunning ? "வீடியோ பார்க்கும் போதும் பின்னணியில் ஆர்டர்களை ஏற்கும்" : "மிதக்கும் சுவிட்சைத் தொட்டு ஆன் செய்யவும்")
                     .setContentIntent(pendingIntent)
                     .setOngoing(true)
                     .build();
@@ -142,11 +142,11 @@ public class FloatingSwitchService extends Service {
         params.x = 30;
         params.y = 250;
 
-        boolean isEnabled = prefs != null && prefs.getBoolean("is_auto_accept_on", true);
+        boolean isRunning = storage != null && storage.getBoolean("isRunning", false);
 
         floatingView = new TextView(this);
-        floatingView.setText(isEnabled ? "⚡ RAPIDO: ON" : "⏸ RAPIDO: OFF");
-        floatingView.setBackgroundColor(isEnabled ? Color.parseColor("#10B981") : Color.parseColor("#EF4444"));
+        floatingView.setText(isRunning ? "⚡ RAPIDO: ON" : "⏸ RAPIDO: OFF");
+        floatingView.setBackgroundColor(isRunning ? Color.parseColor("#10B981") : Color.parseColor("#EF4444"));
         floatingView.setTextColor(Color.WHITE);
         floatingView.setTextSize(15);
         floatingView.setPadding(36, 24, 36, 24);
@@ -154,12 +154,15 @@ public class FloatingSwitchService extends Service {
         floatingView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                boolean current = prefs.getBoolean("is_auto_accept_on", true);
-                boolean next = !current;
-                prefs.edit().putBoolean("is_auto_accept_on", next).commit();
+                boolean cur = storage.getBoolean("isRunning", false);
+                boolean next = !cur;
+                storage.edit().putBoolean("isRunning", next).apply();
+                RapidoAutoClickService.isAutoAcceptOn = next;
+
                 floatingView.setText(next ? "⚡ RAPIDO: ON" : "⏸ RAPIDO: OFF");
                 floatingView.setBackgroundColor(next ? Color.parseColor("#10B981") : Color.parseColor("#EF4444"));
                 startForegroundServiceWithNotification();
+                MainActivity.syncStaticUI();
             }
         });
 

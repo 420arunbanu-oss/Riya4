@@ -10,8 +10,8 @@ android {
         applicationId = "com.example.rapido.autoclicker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0-LIGHTWEIGHT"
+        versionCode = 48
+        versionName = "48.0"
     }
 
     buildTypes {
@@ -33,5 +33,5 @@ android {
 }
 
 dependencies {
-    // Pure Android Native SDK - Zero external dependencies
+    // Pure Android Native SDK - Zero external dependencies for guaranteed 15-second build
 }

@@ -6,4 +6,4 @@
     android:canRetrieveWindowContent="true"
     android:canPerformGestures="true"
     android:description="@string/app_name"
-    android:notificationTimeout="10" />
+    android:notificationTimeout="20" />

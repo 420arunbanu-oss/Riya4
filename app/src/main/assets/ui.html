@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+        body { background-color: #0d121f; color: #ffffff; padding: 12px; font-size: 13px; max-width: 450px; margin: 0 auto; overflow-y: auto !important; height: auto !important; }
+        .card { background: #151d30; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 14px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+        .card-highlight { border: 1px solid rgba(56, 189, 248, 0.3); background: linear-gradient(145deg, #151d30, #0f172a); }
+        .flex { display: flex; align-items: center; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .admin-nav { background: linear-gradient(135deg, #10172a, #1e293b); padding: 12px 14px; border-radius: 16px; margin-bottom: 12px; border: 1px solid rgba(56, 189, 248, 0.2); }
+        .header-logo { background: linear-gradient(135deg, #0284c7, #2563eb); width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-right: 10px; box-shadow: 0 4px 12px rgba(37,99,235,0.4); }
+        .badge-version { border: 1px solid #10b981; background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 4px 10px; border-radius: 14px; font-size: 10px; font-weight: bold; cursor: pointer; }
+        .badge-update-glow { border: 2px solid #ef4444 !important; background: rgba(239, 68, 68, 0.4) !important; color: #ffffff !important; font-weight: 900 !important; animation: intenseBlink 0.8s infinite alternate; }
+        @keyframes intenseBlink { 0% { opacity: 0.3; transform: scale(0.98); } 100% { opacity: 1; transform: scale(1.02); } }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .dot-green { background: #10b981; box-shadow: 0 0 6px #10b981; }
+        .dot-red { background: #e11d48; box-shadow: 0 0 8px #e11d48; }
+        .perm-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 14px; margin-bottom: 10px; }
+        .perm-title { font-weight: bold; font-size: 13px; color: #ffffff; }
+        .perm-desc { color: #94a3b8; font-size: 10px; margin-top: 2px; }
+        .perm-btn { background: #0284c7; color: white; border: none; padding: 8px 12px; border-radius: 10px; font-size: 11px; font-weight: bold; cursor: pointer; }
+        .perm-btn-active { background: #10b981; color: #000; }
+        .user-panel-card { background: #141c2e; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
+        .user-header { border-bottom: 1px solid rgba(255, 255, 255, 0.06); padding-bottom: 10px; margin-bottom: 12px; }
+        .user-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; color: #fff; margin-right: 12px; }
+        .user-details-text { font-size: 11px; color: #94a3b8; line-height: 1.5; }
+        .user-details-text span { color: #f1f5f9; font-weight: 600; }
+        .control-box { background: #0c1220; border-radius: 14px; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.05); text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+        .control-title { font-size: 10px; font-weight: bold; color: #94a3b8; margin-bottom: 6px; }
+        .toggle-pill { width: 62px; height: 30px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between; padding: 0 4px; transition: all 0.3s; position: relative; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+        .toggle-pill-on { background: #10b981; border: 2px solid #34d399; }
+        .toggle-pill-off { background: #ef4444; border: 2px solid #f87171; }
+        .toggle-knob { width: 22px; height: 22px; background: #ffffff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3); transition: all 0.3s; position: absolute; }
+        .knob-on { right: 3px; }
+        .knob-off { left: 3px; }
+        .toggle-text { font-size: 10px; font-weight: 900; color: #ffffff; letter-spacing: 0.5px; }
+        .text-on { margin-left: 8px; }
+        .text-off { margin-left: 26px; }
+        .badge-status { padding: 3px 8px; border-radius: 8px; font-size: 9px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px; display: inline-block; }
+        .badge-approved { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid #10b981; }
+        .badge-pending { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #f59e0b; }
+        .start-btn-container { width: 85px; height: 85px; border-radius: 50%; background: radial-gradient(circle, rgba(225,29,72,0.4) 0%, rgba(15,23,42,0.8) 100%); border: 2px solid #e11d48; box-shadow: 0 0 25px rgba(225, 29, 72, 0.7); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; }
+        .start-btn-running { background: radial-gradient(circle, rgba(16,185,129,0.4) 0%, rgba(15,23,42,0.8) 100%); border: 2px solid #10b981; box-shadow: 0 0 25px rgba(16, 185, 129, 0.7); }
+        .sub-card { background: #0c1220; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 12px; }
+        .progress-bar { width: 100%; height: 6px; background: #1e293b; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+        .progress-fill { height: 100%; background: #10b981; width: 85%; }
+        .btn-glow-blue { background: linear-gradient(135deg, #0284c7, #0369a1); color: white; border: none; padding: 10px; border-radius: 12px; font-weight: bold; font-size: 11px; width: 100%; cursor: pointer; }
+        .btn-glow-purple { background: linear-gradient(135deg, #4c1d95, #2e1065); border: 1px solid #c084fc; color: #c084fc; padding: 10px; border-radius: 12px; font-weight: bold; font-size: 11px; width: 100%; cursor: pointer; }
+        .btn-green { background: #10b981; color: #030712; border: none; padding: 10px 16px; font-weight: bold; border-radius: 12px; cursor: pointer; }
+        .btn-red { background: #be123c; color: #ffffff; border: none; padding: 10px 16px; font-weight: bold; border-radius: 12px; cursor: pointer; }
+        .btn-whatsapp { background: linear-gradient(135deg, #25d366, #128c7e); color: #ffffff; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(37,211,102,0.3); }
+        .quick-action-item { background: #0c1220; border: 1px solid rgba(255,255,255,0.05); border-radius: 14px; padding: 12px; cursor: pointer; }
+        .checkbox-container { display: flex; align-items: center; margin: 8px 0; font-size: 13px; cursor: pointer; }
+        .checkbox-container input { width: 18px; height: 18px; margin-right: 8px; accent-color: #10b981; }
+        input[type="text"], input[type="password"], input[type="number"], select { width: 100%; background: #030712; border: 1px solid #1e293b; color: #fff; padding: 12px; border-radius: 12px; outline: none; font-size: 13px; margin-top: 4px; }
+        .bottom-nav { background: #10172a; border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 20px; padding: 10px; display: flex; justify-content: space-around; margin-top: 10px; }
+        .nav-item { text-align: center; color: #64748b; font-size: 10px; cursor: pointer; }
+        .nav-item.active { color: #38bdf8; font-weight: bold; }
+        .divider { border-bottom: 1px solid rgba(255,255,255,0.1); margin: 14px 0; position: relative; text-align: center; }
+        .divider-text { position: absolute; top: -9px; left: 50%; transform: translateX(-50%); background: #0b1329; padding: 0 8px; color: #64748b; font-size: 10px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- LOGIN VIEW -->
+    <div id="loginView">
+        <div class="card" style="padding:20px;">
+            <div class="flex" style="margin-bottom:14px;">
+                <div style="background:#1e293b; width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-right:12px; font-size:20px;">🔒</div>
+                <div>
+                    <div style="font-size:18px; font-weight:bold; color:#fff;">PREMIUM LOGIN</div>
+                    <div style="color:#64748b; font-size:11px;">Authorization required to run the script.</div>
+                </div>
+            </div>
+            <label style="color:#38bdf8; font-size:11px; font-weight:bold;">Email Address:</label>
+            <input type="text" id="emailInput" placeholder="Enter your email ID">
+            <label style="color:#38bdf8; font-size:11px; font-weight:bold; margin-top:12px; display:block;">Password:</label>
+            <input type="password" id="passInput" placeholder="Enter your password">
+            <button class="btn-green" style="width:100%; padding:14px; margin-top:16px; font-size:13px;" onclick="doLogin()">➔ LOGIN</button>
+            <div class="divider"><span class="divider-text">OR</span></div>
+            <div style="text-align:center; color:#94a3b8; font-size:11px; margin-bottom:8px;">Don't have an account?</div>
+            <button class="btn-glow-purple" style="padding:12px;" onclick="showRegisterPage()">➕ CREATE NEW ACCOUNT</button>
+            <button class="btn-whatsapp" style="margin-top:10px;" onclick="sendToAutoJS('SUPPORT')">💬 CONTACT ADMIN VIA WHATSAPP</button>
+        </div>
+    </div>
+
+    <!-- REGISTER NEW ACCOUNT VIEW -->
+    <div id="registerView" class="hidden">
+        <div class="card" style="padding:20px;">
+            <div class="flex" style="margin-bottom:14px;">
+                <div style="background:#1e293b; width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-right:12px; font-size:20px;">📝</div>
+                <div><div style="font-size:18px; font-weight:bold; color:#fff;">CREATE NEW ACCOUNT</div><div style="color:#64748b; font-size:11px;">Create your driver account. Get 1-Day Demo Access.</div></div>
+            </div>
+            <label style="color:#38bdf8; font-size:11px; font-weight:bold;">Email Address:</label>
+            <input type="text" id="regEmailInput" placeholder="Enter email ID">
+            <label style="color:#38bdf8; font-size:11px; font-weight:bold; margin-top:12px; display:block;">Password:</label>
+            <input type="password" id="regPassInput" placeholder="Create new password">
+            <label style="color:#38bdf8; font-size:11px; font-weight:bold; margin-top:12px; display:block;">Vehicle Type:</label>
+            <select id="regVehicleInput"><option value="Auto">🛺 Auto</option><option value="Bike">🏍️ Bike</option><option value="Cab">🚗 Cab / Car</option></select>
+            <div style="color:#fbbf24; font-size:11px; font-weight:bold; margin:12px 0;">🎁 1-Day Demo Account • Try the app first, then continue with a premium plan.</div>
+            <div class="grid-2"><button class="btn-red" onclick="showLoginPage()">⬅️ BACK</button><button class="btn-green" onclick="doRegister()">SUBMIT ➔</button></div>
+        </div>
+    </div>
+
+    <!-- SUBSCRIPTION / PREMIUM PLANS VIEW -->
+    <div id="waitView" class="hidden">
+        <div style="padding:4px 2px 14px;"><div style="font-size:26px; font-weight:900; color:#10f59b; letter-spacing:1px;">💎 PREMIUM PLANS</div><div style="color:#94a3b8; font-size:12px; margin-top:8px;">Unlock premium features for maximum earnings</div></div>
+        <div class="card" style="padding:16px;">
+            <div class="flex-between"><label style="color:#38bdf8; font-size:12px; font-weight:bold;">Driver Email ID:</label><span id="driverIndexBadge" style="background:#0284c7; color:#fff; font-size:10px; font-weight:bold; padding:2px 8px; border-radius:10px;">ID: --</span></div>
+            <input type="text" id="waitDriverEmail" readonly style="background:#090d16; color:#e2e8f0; font-weight:bold; margin-top:6px; border:1px solid #1e293b;">
+            <div id="premiumPlansWait"></div>
+            <button class="btn-glow-blue" style="width:100%; padding:12px; margin-top:12px; font-size:12px; font-weight:bold;" onclick="checkStatusAction()">🔄 CHECK PAYMENT / ACCOUNT STATUS</button>
+            <button class="btn-whatsapp" style="margin-top:10px;" onclick="sendToAutoJS('SUPPORT')">💬 CONTACT ADMIN VIA WHATSAPP</button>
+            <button class="btn-red" style="width:100%; padding:12px; margin-top:10px; font-size:12px;" onclick="sendToAutoJS('LOGOUT')">🚪 LOGOUT</button>
+        </div>
+    </div>
+
+    <!-- VERIFY / PAYMENT PROCESS VIEW -->
+    <div id="verifyView" class="hidden">
+        <div class="card" style="text-align:center; padding:24px;">
+            <div style="font-size:48px; margin-bottom:12px;">⏳</div><div style="font-size:22px; font-weight:900; color:#ffffff;">Payment Verification</div>
+            <div style="color:#fbbf24; font-size:13px; font-weight:bold; margin-top:4px;">Checking payment status…</div>
+            <div style="color:#94a3b8; font-size:12px; margin-top:14px; line-height:1.6;">Payment confirmation is being synced with the server. Your premium validity will start from the successful payment activation time.</div>
+            <div class="grid-2" style="margin-top:16px;"><button class="btn-red" style="padding:12px;" onclick="sendToAutoJS('LOGOUT')">LOGOUT</button><button class="btn-glow-blue" style="padding:12px;" onclick="sendToAutoJS('CHECK_STATUS')">CHECK STATUS 🔄</button></div>
+            <button class="btn-whatsapp" style="margin-top:10px;" onclick="sendToAutoJS('SUPPORT')">💬 CONTACT ADMIN (WHATSAPP)</button>
+        </div>
+    </div>
+
+    <!-- PERMISSIONS VIEW -->
+    <div id="permissionView" class="hidden">
+        <div class="card card-highlight flex-between" style="margin-bottom:12px;">
+            <div>
+                <div style="font-weight:bold; font-size:15px; color:#ffffff;">⚙️ PERMISSION SETTINGS</div>
+                <div style="color:#38bdf8; font-size:10px;">Enable required system permissions below</div>
+            </div>
+            <button class="btn-glow-blue" style="width:auto; padding:6px 14px;" onclick="showDashboardView()">⬅️ BACK</button>
+        </div>
+        <div class="card" style="padding:16px;">
+            <div class="perm-card flex-between">
+                <div><div class="perm-title">1. Accessibility Service</div><div class="perm-desc">Required to perform auto-clicks on orders</div></div>
+                <button id="btnAccessibility" class="perm-btn" onclick="sendToAutoJS('REQ_ACCESSIBILITY')">ENABLE ➔</button>
+            </div>
+            <div class="perm-card flex-between">
+                <div><div class="perm-title">2. Display Over Other Apps</div><div class="perm-desc">Required to render floating UI widgets</div></div>
+                <button id="btnOverlay" class="perm-btn" onclick="sendToAutoJS('REQ_OVERLAY')">ENABLE ➔</button>
+            </div>
+            <div class="perm-card flex-between">
+                <div><div class="perm-title">3. Battery Optimization</div><div class="perm-desc">Required to keep app running in background</div></div>
+                <button id="btnBattery" class="perm-btn" onclick="sendToAutoJS('REQ_BATTERY')">ENABLE ➔</button>
+            </div>
+            <button class="btn-green" style="width:100%; padding:12px; font-size:12px; font-weight:bold; margin-top:6px;" onclick="sendToAutoJS('CHECK_PERMISSIONS')">RE-CHECK PERMISSIONS 🔄</button>
+        </div>
+    </div>
+
+    <!-- DASHBOARD VIEW -->
+    <div id="dashboardView" class="hidden">
+        <div class="admin-nav flex-between">
+            <div class="flex">
+                <div class="header-logo">⚡</div>
+                <div>
+                    <div style="font-weight:900; font-size:14px; color:#ffffff; letter-spacing:0.5px;">NURA <span style="color:#38bdf8;">AUTO CLICKER</span></div>
+                    <div style="color:#10b981; font-size:9px; font-weight:bold; display:flex; align-items:center; margin-top:2px;">
+                        <span class="dot dot-green" style="width:6px; height:6px;"></span> Rapido Exclusive Supported
+                    </div>
+                </div>
+            </div>
+            <div id="updateBadge" class="badge-version flex" onclick="sendToAutoJS('UPDATE')">
+                <span id="updateDot" class="dot dot-green"></span>
+                <span id="updateTxt">V48.0 RAPIDO ✓</span>
+            </div>
+        </div>
+        <div class="card card-highlight flex-between" style="padding:10px 14px; margin-bottom:12px;">
+            <div class="flex">
+                <div style="font-size:20px; margin-right:10px;">⚡</div>
+                <div>
+                    <div style="font-weight:bold; color:#10b981; font-size:11px;">ULTRA SPEED ENGINE (v48.0)</div>
+                    <div style="color:#94a3b8; font-size:9px;">Realtime Sync & Rapido Auto Protect</div>
+                </div>
+            </div>
+            <div style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#34d399; padding:4px 8px; border-radius:8px; font-size:9px; font-weight:bold;">100% READY</div>
+        </div>
+        <div id="statusCard" class="card flex-between" style="padding: 16px 14px;">
+            <div>
+                <div class="flex" style="margin-bottom: 4px;">
+                    <span id="statusDot" class="dot dot-red"></span>
+                    <span style="color:#94a3b8; font-size:11px; font-weight:bold;">AUTO ACCEPT</span>
+                </div>
+                <div id="statusTxt" style="color:#e11d48; font-size:22px; font-weight:bold;">OFFLINE</div>
+                <div id="statusSub" style="color:#64748b; font-size:10px; margin-top: 4px;">Tap <span style="color:#10b981;">START</span> to begin auto-accepting orders</div>
+            </div>
+            <div id="startBtnBox" class="start-btn-container" onclick="sendToAutoJS('TOGGLE_START')">
+                <div id="startBtnLabel" style="font-size:14px; font-weight:bold; color:#fff;">START</div>
+                <div id="startBtnIcon" style="font-size:10px; color:#e11d48; margin-top:2px;">▶</div>
+            </div>
+        </div>
+        <div class="user-panel-card">
+            <div class="user-header flex-between">
+                <div class="flex">
+                    <div id="userAvatar" class="user-avatar">A</div>
+                    <div>
+                        <div id="userEmailTitle" style="font-weight:bold; font-size:13px; color:#ffffff;">user_gmail_com</div>
+                        <div id="userEmailSub" style="color:#38bdf8; font-size:10px;">user@gmail.com</div>
+                    </div>
+                </div>
+                <div id="userStatusBadge" class="badge-status badge-approved">APPROVED</div>
+            </div>
+            <div class="user-details-text" style="margin-bottom:12px;">
+                <div>Android ID : <span id="userAndroidId">--</span></div>
+                <div>Driver No : <span id="userDriverIndex" style="color:#38bdf8; font-weight:bold;">--</span></div>
+                <div>Vehicle Type : <span id="userVehicleTxt" style="color:#fbbf24; font-weight:bold;">🛺 Auto</span></div>
+                <div>Device Lock : <span style="color:#10b981; font-weight:bold;">🔒 LOCKED (1 Device)</span></div>
+            </div>
+            <div class="grid-3">
+                <div class="control-box"><div class="control-title">Area Filter</div><div id="areaFilterPill" class="toggle-pill toggle-pill-on"><span id="areaText" class="toggle-text text-on">ON</span><div id="areaKnob" class="toggle-knob knob-on"></div></div></div>
+                <div class="control-box"><div class="control-title">Price Filter</div><div id="priceFilterPill" class="toggle-pill toggle-pill-on"><span id="priceText" class="toggle-text text-on">ON</span><div id="priceKnob" class="toggle-knob knob-on"></div></div></div>
+                <div class="control-box"><div class="control-title">Status</div><div id="statusFilterPill" class="toggle-pill toggle-pill-on"><span id="statusText" class="toggle-text text-on">ON</span><div id="statusKnob" class="toggle-knob knob-on"></div></div></div>
+            </div>
+        </div>
+        <div class="grid-2" style="margin-bottom: 12px;">
+            <div class="sub-card card" style="margin-bottom:0;">
+                <div class="flex-between" style="margin-bottom:6px;">
+                    <span style="color:#64748b; font-size:9px; font-weight:bold;">LAST ACCEPTED ORDER</span>
+                    <span id="lastTimeTxt" style="color:#38bdf8; font-size:9px;">🕒 --:--</span>
+                </div>
+                <div id="lastPriceTxt" style="font-size:20px; font-weight:bold; color:#ffffff; margin-bottom:4px;">Rs. 0</div>
+                <div class="flex-between"><div style="color:#f43f5e; font-size:10px;">📍 Area: <span id="lastAreaTxt" style="color:#94a3b8;">None</span></div></div>
+            </div>
+            <div class="sub-card card" style="margin-bottom:0;">
+                <div style="color:#64748b; font-size:9px; font-weight:bold; margin-bottom:6px;">TODAY'S EARNINGS</div>
+                <div id="todayEarningsTxt" style="font-size:22px; font-weight:bold; color:#10b981; margin-bottom:4px;">Rs. 0</div>
+                <div id="todayOrdersTxt" style="color:#38bdf8; font-size:10px; font-weight:bold;">0 Orders Completed</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="grid-2" style="margin-bottom: 12px;">
+                <div>
+                    <div style="color:#64748b; font-size:10px; font-weight:bold;">LICENSE STATUS</div>
+                    <div style="color:#10b981; font-size:15px; font-weight:bold; margin-top:2px;">APPROVED ✓</div>
+                    <div style="margin-top:10px;">
+                        <span style="color:#64748b; font-size:9px; font-weight:bold;">PLAN VALIDITY</span>
+                        <div id="validityDaysTxt" style="color:#ffffff; font-size:13px; font-weight:bold;">30 DAYS LEFT</div>
+                        <div class="progress-bar"><div class="progress-fill"></div></div>
+                        <div style="color:#64748b; font-size:9px;">EXPIRES ON: <span id="expiresOnTxt" style="color:#94a3b8;">--/--/----</span></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex" style="margin-bottom: 8px;">
+                        <div style="background:#1e293b; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:6px; font-size:12px;">👤</div>
+                        <div>
+                            <div style="color:#38bdf8; font-size:9px; font-weight:bold;">USER ACCOUNT</div>
+                            <div id="userEmailTxt" style="color:#ffffff; font-size:10px; word-break:break-all;">User</div>
+                        </div>
+                    </div>
+                    <div style="background:#0c1220; padding:8px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="color:#38bdf8; font-size:9px; font-weight:bold;">PLAN</div>
+                        <div style="color:#c084fc; font-size:11px; font-weight:bold;">⭐ PREMIUM</div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-2">
+                <button class="btn-glow-blue" onclick="showPlansView()">🚀 RENEW PLAN</button>
+                <button class="btn-glow-purple" onclick="showPlansView()">👑 MANAGE PLAN</button>
+            </div>
+        </div>
+        <div class="card" style="padding:10px;">
+            <div class="quick-action-item flex-between" style="margin-bottom:8px;" onclick="showFilterPage()">
+                <div class="flex">
+                    <span style="font-size:18px; margin-right:10px; color:#38bdf8;">🎛️</span>
+                    <div>
+                        <div style="font-weight:bold; color:#ffffff;">FILTER SETTINGS</div>
+                        <div style="color:#64748b; font-size:10px;">Price (<span id="summaryPrice">OFF</span>) & Area (<span id="summaryArea">OFF</span>)</div>
+                    </div>
+                </div>
+                <span style="color:#38bdf8; font-size:18px; font-weight:bold;">›</span>
+            </div>
+            <div class="quick-action-item flex-between" style="margin-bottom:8px;" onclick="showPermissionSettingsView()">
+                <div class="flex">
+                    <span style="font-size:18px; margin-right:10px; color:#10b981;">🔑</span>
+                    <div>
+                        <div style="font-weight:bold; color:#ffffff;">PERMISSION SETTINGS</div>
+                        <div style="color:#64748b; font-size:10px;">Accessibility, Overlay & Battery Saver</div>
+                    </div>
+                </div>
+                <span style="color:#10b981; font-size:18px; font-weight:bold;">›</span>
+            </div>
+            <div class="grid-2">
+                <div class="quick-action-item flex" onclick="sendToAutoJS('SUPPORT')">
+                    <span style="font-size:16px; margin-right:8px;">💬</span>
+                    <div><div style="font-weight:bold; font-size:11px;">SUPPORT</div><div style="color:#64748b; font-size:9px;">WhatsApp Admin</div></div>
+                </div>
+                <div class="quick-action-item flex" onclick="sendToAutoJS('LOGOUT')">
+                    <span style="font-size:16px; margin-right:8px;">🚪</span>
+                    <div><div style="font-weight:bold; font-size:11px; color:#f43f5e;">LOGOUT</div><div style="color:#64748b; font-size:9px;">Secure Exit</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="bottom-nav">
+            <div class="nav-item active" onclick="showDashboardView()"><div style="font-size:16px;">🏠</div><div>Home</div></div>
+            <div class="nav-item" onclick="showPlansView()"><div style="font-size:16px;">📊</div><div>Plans</div></div>
+            <div class="nav-item" onclick="sendToAutoJS('SUPPORT')"><div style="font-size:16px;">💬</div><div>Support</div></div>
+            <div class="nav-item" onclick="showPermissionSettingsView()"><div style="font-size:16px;">⚙️</div><div>Settings</div></div>
+        </div>
+    </div>
+
+    <div id="plansView" class="hidden">
+        <button class="btn-glow-blue" style="margin-bottom:12px; padding:8px 14px;" onclick="showDashboardView()">⬅️ BACK TO DASHBOARD</button>
+        <div style="padding:4px 2px 14px;"><div style="font-size:26px; font-weight:900; color:#10f59b; letter-spacing:1px;">💎 PREMIUM PLANS</div><div style="color:#94a3b8; font-size:12px; margin-top:8px;">Unlock premium features for maximum earnings</div></div>
+        <div id="premiumPlansMain"></div>
+    </div>
+
+    <div id="filterView" class="hidden">
+        <div class="card card-highlight flex-between"><div><div style="font-weight:bold; font-size:15px; color:#ffffff;">⚙️ FILTER SETTINGS (v48.0)</div><div style="color:#38bdf8; font-size:10px;">Simple Price + Custom Area</div></div><button class="btn-glow-blue" style="width:auto; padding:6px 14px;" onclick="showDashboardView()">⬅️ BACK</button></div>
+        <div class="card"><label class="checkbox-container"><input type="checkbox" id="usePriceCb" onclick="checkPriceCheckbox(this)"><span style="font-weight:bold; color:#10b981; font-size:14px;">💰 Enable Price Filter</span></label><div class="grid-2" style="margin-top:10px;"><div><span style="color:#94a3b8; font-size:10px; font-weight:bold;">Min Price (Rs.):</span><input type="number" id="minPriceInput" value="40"></div><div><span style="color:#94a3b8; font-size:10px; font-weight:bold;">Max Price (Rs.):</span><input type="number" id="maxPriceInput" value="10000"></div></div><label class="checkbox-container" style="margin-top:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;"><input type="checkbox" id="useSkipBelowMinCb"><span style="font-weight:bold; color:#f43f5e; font-size:13px;">🚫 Skip Orders Below Min Price</span></label></div>
+        <div class="card" style="border:1px solid rgba(56,189,248,0.25);"><div class="flex-between"><label class="checkbox-container" style="margin:0;"><input type="checkbox" id="useAreaCb" onclick="toggleAreaCb(this)"><span style="font-weight:bold; color:#38bdf8; font-size:14px;">📍 Enable Area Filter</span></label><button class="btn-green" style="width:48px; min-width:48px; padding:8px 0; font-size:22px; line-height:1;" onclick="openAddAreaBox()">＋</button></div><div style="color:#94a3b8; font-size:10px; margin-top:7px;">Select only the destination areas you want.</div><div class="flex" style="margin-top:9px; gap:8px;"><button class="btn-glow-blue" style="flex:1; padding:9px 6px; font-size:11px;" onclick="selectAllAreas()">✓ ALL SELECT</button><button class="btn-red" style="flex:1; padding:9px 6px; font-size:11px; font-weight:bold;" onclick="removeAllAreas()">✕ ALL REMOVE</button></div><div id="areaChecklist" style="margin-top:10px; max-height:360px; overflow-y:auto; padding-right:2px;"></div></div>
+        <div id="addAreaModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;"><div style="width:100%;max-width:360px;background:#0d1527;border:1px solid rgba(16,185,129,.45);border-radius:18px;padding:18px;box-sizing:border-box;"><div style="font-size:16px;font-weight:900;color:#fff;">＋ ADD NEW AREA</div><div style="color:#94a3b8;font-size:11px;margin:6px 0 12px;">Type the area name and tap SAVE.</div><input id="newAreaNameInput" type="text" placeholder="Example: Saravanampatti" style="margin-top:0;"><div class="flex" style="gap:8px;margin-top:10px;"><button class="btn-glow-blue" style="flex:1;padding:11px;" onclick="closeAddAreaBox()">CANCEL</button><button class="btn-green" style="flex:1;padding:11px;" onclick="saveNewArea()">✓ SAVE</button></div></div></div>
+        <button class="btn-green" style="width:100%; padding:14px; font-size:14px; margin-top:8px; box-shadow:0 0 15px rgba(16,185,129,0.4);" onclick="saveAndApplyFilters()">✓ SAVE & APPLY FILTERS</button>
+    </div>
+
+    <script>
+        var PREMIUM_PLANS = [
+            { name: "1 Day", amount: 29, days: 1 },
+            { name: "1 Week", amount: 139, days: 7 },
+            { name: "15 Days", amount: 199, days: 15 },
+            { name: "1 Month", amount: 299, days: 30 },
+            { name: "1 Year", amount: 1999, days: 365 }
+        ];
+        var areaList = [
+            "Saravanampatti", "Idikarai", "Thudiyalur", "Keeranatham", "Ganapathy",
+            "Sanganoor", "Nallampalayam", "Chinnavedampatti", "Vellakinar", "Koundampalayam",
+            "Rathinapuri", "Gn Mills", "SNS", "Murugan Nagar", "Periyanaikenpalayam",
+            "Nayakkan Palyam", "Ganapathypudur", "Kalapatti", "Vellalore", "Nanjundapuram",
+            "PSG", "R.S. Puram", "Sai Baba Colony", "Vadavalli", "Edayarpalayam",
+            "Vilankurichi", "Kanuvai", "Pannimadai", "Gandhipuram", "Tatabad",
+            "Vedapatty", "Peelamedu", "Railway Jn CBT", "Railway Station"
+        ];
+        var serverAllowPrice = false; var serverAllowArea = false; var savedSelectedAreas = []; var savedCustomAreas = [];
+        var activePlanIndex = 0; var activePlanName = PREMIUM_PLANS[0].name; var activePlanAmount = PREMIUM_PLANS[0].amount; var activePlanDays = PREMIUM_PLANS[0].days;
+
+        function sendToAutoJS(act, data) {
+            var payload = JSON.stringify({ action: act, data: data || {} });
+            try {
+                if (window.autoxBridge && typeof window.autoxBridge.postMessage === 'function') {
+                    window.autoxBridge.postMessage(payload);
+                    return;
+                }
+            } catch(e) {}
+            try {
+                if (window.$autox && typeof window.$autox.callHandler === 'function') {
+                    window.$autox.callHandler('nativeAction', payload, function() {});
+                    return;
+                }
+            } catch(e) {}
+        }
+
+        function doLogin() {
+            var email = document.getElementById("emailInput").value.trim(), pass = document.getElementById("passInput").value.trim();
+            if (!email || !pass) { alert("Email and Password are required!"); return; }
+            sendToAutoJS("LOGIN", { email: email, pass: pass });
+        }
+        function showRegisterPage() { document.getElementById("loginView").classList.add("hidden"); document.getElementById("registerView").classList.remove("hidden"); }
+        function showLoginPage() { document.getElementById("registerView").classList.add("hidden"); document.getElementById("loginView").classList.remove("hidden"); }
+        function doRegister() {
+            var email = document.getElementById("regEmailInput").value.trim(), pass = document.getElementById("regPassInput").value.trim(), vehicleType = document.getElementById("regVehicleInput").value;
+            if (!email || !pass) { alert("Email and Password are required!"); return; }
+            sendToAutoJS("REGISTER", { email: email, pass: pass, vehicleType: vehicleType });
+        }
+
+        function renderPremiumPlans(id) {
+            var el = document.getElementById(id); if (!el) return;
+            var h = "";
+            for (var i = 0; i < PREMIUM_PLANS.length; i++) {
+                var p = PREMIUM_PLANS[i];
+                h += '<div onclick="selectPremiumPlan(' + i + ')" style="margin-bottom:10px;min-height:102px;padding:18px 14px;border-radius:24px;border:1px solid rgba(16,185,129,.28);background:#11151e;display:flex;align-items:center;gap:10px;box-sizing:border-box;cursor:pointer;">' +
+                     '<div style="flex:1;min-width:0;"><div style="font-size:17px;font-weight:900;color:#fff;">' + p.name + '</div><div style="color:#94a3b8;font-size:11px;margin-top:6px;">' + p.days + ' day' + (p.days > 1 ? "s" : "") + '</div></div>' +
+                     '<div style="font-size:25px;font-weight:900;color:#10f59b;white-space:nowrap;">₹' + p.amount + '</div>' +
+                     '<button class="btn-green" style="width:112px;min-width:112px;padding:12px 8px;font-size:13px;font-weight:900;border-radius:24px;" onclick="event.stopPropagation();selectPremiumPlan(' + i + ');paySelectedPlan()">PAY</button></div>';
+            }
+            el.innerHTML = h;
+        }
+
+        function selectPremiumPlan(i) {
+            if (i < 0 || i >= PREMIUM_PLANS.length) return;
+            activePlanIndex = i;
+            var p = PREMIUM_PLANS[i];
+            activePlanName = p.name; activePlanAmount = p.amount; activePlanDays = p.days;
+            renderPremiumPlans("premiumPlansWait"); renderPremiumPlans("premiumPlansMain");
+        }
+
+        function paySelectedPlan() {
+            try {
+                var p = PREMIUM_PLANS[activePlanIndex];
+                var emailInputElem = document.getElementById('waitDriverEmail');
+                var userEmail = emailInputElem ? emailInputElem.value.trim() : 'driver_user';
+                var paymentUrl = 'https://arunmichealraj33-alt.github.io/payment-page/';
+                var finalUrl = paymentUrl + '?userid=' + encodeURIComponent(userEmail) + '&plan=' + encodeURIComponent(p.name) + '&amount=' + p.amount + '&days=' + p.days;
+                sendToAutoJS("OPEN_URL", { url: finalUrl });
+            } catch(e) {
+                alert('Payment Redirect Exception: ' + e);
+            }
+        }
+
+        function checkStatusAction() { sendToAutoJS("CHECK_STATUS"); }
+        function hideAllViews() {
+            var ids = ["loginView", "registerView", "waitView", "verifyView", "dashboardView", "plansView", "filterView", "permissionView"];
+            for (var i = 0; i < ids.length; i++) { var e = document.getElementById(ids[i]); if (e) e.classList.add("hidden"); }
+        }
+        function showPermissionSettingsView() { hideAllViews(); document.getElementById("permissionView").classList.remove("hidden"); sendToAutoJS("CHECK_PERMISSIONS"); }
+        function showFilterPage() { hideAllViews(); document.getElementById("filterView").classList.remove("hidden"); renderCustomAreas(); }
+        function showPlansView() { hideAllViews(); document.getElementById("plansView").classList.remove("hidden"); renderPremiumPlans("premiumPlansMain"); }
+        function showDashboardView() { hideAllViews(); document.getElementById("dashboardView").classList.remove("hidden"); }
+
+        function checkPriceCheckbox(cb) { if (!serverAllowPrice) { cb.checked = false; sendToAutoJS("SHOW_TOAST", "Price filter is not enabled by admin!"); } }
+        function toggleAreaCb(cb) { if (!serverAllowArea) { cb.checked = false; sendToAutoJS("SHOW_TOAST", "Area filter is not enabled by admin!"); } }
+
+        function openAddAreaBox() {
+            if (!serverAllowArea) { sendToAutoJS("SHOW_TOAST", "Area filter is not enabled by admin!"); return; }
+            var m = document.getElementById("addAreaModal"); if (m) m.classList.remove("hidden");
+            var i = document.getElementById("newAreaNameInput"); if (i) { i.value = ""; setTimeout(function() { try { i.focus(); } catch(e) {} }, 100); }
+        }
+        function closeAddAreaBox() { var m = document.getElementById("addAreaModal"); if (m) m.classList.add("hidden"); }
+
+        function saveNewArea() {
+            var i = document.getElementById("newAreaNameInput"), name = i ? i.value.trim() : "";
+            if (!name) { alert("Please enter an area name."); return; }
+            var exists = false;
+            for (var a = 0; a < areaList.length; a++) { if (String(areaList[a]).toLowerCase() === name.toLowerCase()) { exists = true; break; } }
+            for (var b = 0; b < savedCustomAreas.length; b++) { if (String(savedCustomAreas[b]).toLowerCase() === name.toLowerCase()) { exists = true; break; } }
+            if (exists) { alert("This area is already in the list."); return; }
+            savedCustomAreas.push(name); savedSelectedAreas.push(name); closeAddAreaBox(); renderCustomAreas();
+        }
+
+        function removeCustomArea(index) {
+            if (index >= 0 && index < savedCustomAreas.length) {
+                var removedName = savedCustomAreas[index];
+                savedCustomAreas.splice(index, 1);
+                var selIdx = savedSelectedAreas.indexOf(removedName);
+                if (selIdx >= 0) savedSelectedAreas.splice(selIdx, 1);
+                renderCustomAreas();
+            }
+        }
+
+        function selectAllAreas() {
+            if (!serverAllowArea) { sendToAutoJS("SHOW_TOAST", "Area filter is not enabled by admin!"); return; }
+            savedSelectedAreas = [];
+            for (var i = 0; i < areaList.length; i++) savedSelectedAreas.push(areaList[i]);
+            for (var j = 0; j < savedCustomAreas.length; j++) savedSelectedAreas.push(savedCustomAreas[j]);
+            renderCustomAreas();
+        }
+
+        function removeAllAreas() { savedSelectedAreas = []; renderCustomAreas(); }
+
+        function escapeHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+        function isAreaSelected(name) { for (var i = 0; i < savedSelectedAreas.length; i++) { if (String(savedSelectedAreas[i]).toLowerCase() === String(name).toLowerCase()) return true; } return false; }
+        function setAreaSelected(name, checked) {
+            var idx = -1;
+            for (var i = 0; i < savedSelectedAreas.length; i++) { if (String(savedSelectedAreas[i]).toLowerCase() === String(name).toLowerCase()) { idx = i; break; } }
+            if (checked && idx < 0) savedSelectedAreas.push(name);
+            if (!checked && idx >= 0) savedSelectedAreas.splice(idx, 1);
+        }
+
+        function renderCustomAreas() {
+            var box = document.getElementById('areaChecklist'); if (!box) return;
+            var h = '';
+            for (var i = 0; i < areaList.length; i++) {
+                var n = areaList[i], ck = isAreaSelected(n) ? ' checked' : '';
+                h += '<label style="display:flex;align-items:center;gap:10px;background:#0b1220;border:1px solid rgba(56,189,248,0.18);border-radius:10px;padding:10px 11px;margin-bottom:6px;cursor:pointer;"><input type="checkbox" data-area="' + escapeHtml(n) + '" ' + ck + ' onchange="toggleAreaSelection(this.getAttribute(\\'data-area\\'),this.checked)" style="width:18px;height:18px;accent-color:#10b981;"><span style="color:#e2e8f0;font-size:12px;font-weight:bold;">' + escapeHtml(n) + '</span></label>';
+            }
+            for (var j = 0; j < savedCustomAreas.length; j++) {
+                var c = savedCustomAreas[j], cc = isAreaSelected(c) ? ' checked' : '';
+                h += '<div style="display:flex;align-items:center;gap:8px;background:#071827;border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:9px 10px;margin-bottom:6px;"><label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;"><input type="checkbox" data-area="' + escapeHtml(c) + '" ' + cc + ' onchange="toggleAreaSelection(this.getAttribute(\\'data-area\\'),this.checked)" style="width:18px;height:18px;accent-color:#10b981;"><span style="color:#e2e8f0;font-size:12px;font-weight:bold;">' + escapeHtml(c) + ' <span style="color:#38bdf8;font-size:9px;">CUSTOM</span></span></label><button onclick="removeCustomArea(' + j + ')" style="background:none;border:0;color:#f87171;font-size:18px;padding:2px 6px;cursor:pointer;">×</button></div>';
+            }
+            box.innerHTML = h;
+        }
+
+        function toggleAreaSelection(name, checked) {
+            if (!serverAllowArea) { renderCustomAreas(); sendToAutoJS('SHOW_TOAST', 'Area filter is not enabled by admin!'); return; }
+            setAreaSelected(name, checked); renderCustomAreas();
+        }
+
+        function saveAndApplyFilters() {
+            var pc = document.getElementById("usePriceCb").checked, sc = document.getElementById("useSkipBelowMinCb").checked, ac = document.getElementById("useAreaCb").checked;
+            if (pc && !serverAllowPrice) { sendToAutoJS("SHOW_TOAST", "Price filter is disabled by admin!"); return; }
+            if (ac && !serverAllowArea) { sendToAutoJS("SHOW_TOAST", "Area filter is disabled by admin!"); return; }
+            if (ac && savedSelectedAreas.length === 0) { sendToAutoJS("SHOW_TOAST", "Select at least one area using the tick box or +"); return; }
+            sendToAutoJS("SAVE_FILTERS", {
+                usePriceFilter: pc, useSkipBelowMin: sc, useAreaFilter: ac, useSearchAreaFilter: false,
+                customAreaSearchStr: savedSelectedAreas.join(","), customAreas: savedCustomAreas,
+                minPrice: parseInt(document.getElementById("minPriceInput").value) || 40,
+                maxPrice: parseInt(document.getElementById("maxPriceInput").value) || 10000,
+                selectedAreas: savedSelectedAreas
+            });
+            showDashboardView();
+        }
+
+        function updatePillState(p, t, k, on) {
+            var a = document.getElementById(p), b = document.getElementById(t), c = document.getElementById(k);
+            if (a && b && c) {
+                a.className = on ? "toggle-pill toggle-pill-on" : "toggle-pill toggle-pill-off";
+                b.className = on ? "toggle-text text-on" : "toggle-text text-off";
+                b.innerText = on ? "ON" : "OFF";
+                c.className = on ? "toggle-knob knob-on" : "toggle-knob knob-off";
+            }
+        }
+
+        function updateDashboard(data) {
+            var ba = document.getElementById("btnAccessibility"), bo = document.getElementById("btnOverlay"), bb = document.getElementById("btnBattery");
+            if (ba && bo && bb) {
+                ba.className = data.hasAccessibility ? "perm-btn perm-btn-active" : "perm-btn";
+                ba.innerText = data.hasAccessibility ? "✓ ENABLED" : "ENABLE ➔";
+                bo.className = data.hasOverlay ? "perm-btn perm-btn-active" : "perm-btn";
+                bo.innerText = data.hasOverlay ? "✓ ENABLED" : "ENABLE ➔";
+                bb.className = data.hasBattery ? "perm-btn perm-btn-active" : "perm-btn";
+                bb.innerText = data.hasBattery ? "✓ ENABLED" : "ENABLE ➔";
+            }
+            serverAllowPrice = data.allowPrice; serverAllowArea = data.allowArea;
+            if (data.minPrice) document.getElementById("minPriceInput").value = data.minPrice;
+            if (data.maxPrice) document.getElementById("maxPriceInput").value = data.maxPrice;
+            if (data.selectedAreas) savedSelectedAreas = data.selectedAreas;
+            else if (data.customAreaSearchStr) savedSelectedAreas = data.customAreaSearchStr.split(",");
+            savedCustomAreas = Array.isArray(data.customAreas) ? data.customAreas : [];
+            document.getElementById("usePriceCb").checked = serverAllowPrice && data.usePriceFilter;
+            document.getElementById("useSkipBelowMinCb").checked = data.useSkipBelowMin;
+            document.getElementById("useAreaCb").checked = serverAllowArea && data.useAreaFilter;
+            renderCustomAreas();
+            document.getElementById("summaryPrice").innerText = (serverAllowPrice && data.usePriceFilter) ? ("Rs. " + data.minPrice + " - Rs. " + data.maxPrice) : "OFF";
+            document.getElementById("summaryArea").innerText = (serverAllowArea && data.useAreaFilter) ? ("📍 " + savedSelectedAreas.length + " Saved") : "OFF";
+            renderPremiumPlans("premiumPlansWait"); renderPremiumPlans("premiumPlansMain");
+            if (data.driverIndex) {
+                var db = document.getElementById("driverIndexBadge"), ui = document.getElementById("userDriverIndex");
+                if (db) db.innerText = "வரிசை எண்: #" + data.driverIndex;
+                if (ui) ui.innerText = "#" + data.driverIndex;
+            }
+            if (data.hasUpdate) {
+                var ub = document.getElementById("updateBadge"), ut = document.getElementById("updateTxt");
+                if (ub) ub.className = "badge-version flex badge-update-glow";
+                if (ut) ut.innerText = data.updateTxt || "UPDATE";
+            }
+            if (data.view === "LOGIN") {
+                hideAllViews(); document.getElementById("loginView").classList.remove("hidden");
+            } else if (data.view === "REGISTER") {
+                hideAllViews(); document.getElementById("registerView").classList.remove("hidden");
+            } else if (data.view === "WAIT") {
+                hideAllViews(); if (data.email) document.getElementById("waitDriverEmail").value = data.email; document.getElementById("waitView").classList.remove("hidden");
+            } else if (data.view === "VERIFY") {
+                hideAllViews(); document.getElementById("verifyView").classList.remove("hidden");
+            } else if (data.view === "DASHBOARD") {
+                if (document.getElementById("permissionView").classList.contains("hidden") &&
+                    document.getElementById("filterView").classList.contains("hidden") &&
+                    document.getElementById("plansView").classList.contains("hidden")) {
+                    hideAllViews(); document.getElementById("dashboardView").classList.remove("hidden");
+                }
+                if (data.email) {
+                    var es = data.email, ks = es.replace(/[^a-zA-Z0-9]/g, "_");
+                    document.getElementById("userEmailTxt").innerText = es;
+                    document.getElementById("userEmailTitle").innerText = ks;
+                    document.getElementById("userEmailSub").innerText = es;
+                    document.getElementById("userAvatar").innerText = es.charAt(0).toUpperCase();
+                }
+                if (data.vehicleType) {
+                    var vi = "🛺 Auto";
+                    if (data.vehicleType === "Bike") vi = "🏍️ Bike";
+                    if (data.vehicleType === "Cab") vi = "🚗 Cab (Car)";
+                    document.getElementById("userVehicleTxt").innerText = vi;
+                }
+                if (data.androidId) document.getElementById("userAndroidId").innerText = data.androidId;
+                if (data.daysLeft) document.getElementById("validityDaysTxt").innerText = data.daysLeft;
+                if (data.expiresOn) document.getElementById("expiresOnTxt").innerText = data.expiresOn;
+                if (data.lastPrice) document.getElementById("lastPriceTxt").innerText = data.lastPrice;
+                if (data.lastArea) document.getElementById("lastAreaTxt").innerText = data.lastArea;
+                if (data.lastTime) document.getElementById("lastTimeTxt").innerText = "🕒 " + data.lastTime;
+                if (data.todayEarnings) document.getElementById("todayEarningsTxt").innerText = data.todayEarnings;
+                if (data.todayOrdersCount) document.getElementById("todayOrdersTxt").innerText = data.todayOrdersCount;
+                updatePillState("areaFilterPill", "areaText", "areaKnob", data.allowArea);
+                updatePillState("priceFilterPill", "priceText", "priceKnob", data.allowPrice);
+                updatePillState("statusFilterPill", "statusText", "statusKnob", data.status === "APPROVED" || data.status === "SUCCESS" || data.status === "OK");
+                var st = document.getElementById("statusTxt"), sd = document.getElementById("statusDot"), ss = document.getElementById("statusSub"), sb = document.getElementById("startBtnBox"), sl = document.getElementById("startBtnLabel"), si = document.getElementById("startBtnIcon");
+                if (data.isRunning) {
+                    st.innerText = "ONLINE"; st.style.color = "#10b981"; sd.className = "dot dot-green";
+                    ss.innerText = "Scanning for rides 24/7";
+                    sb.className = "start-btn-container start-btn-running"; sl.innerText = "STOP"; si.innerText = "■"; si.style.color = "#10b981";
+                } else {
+                    st.innerText = "OFFLINE"; st.style.color = "#e11d48"; sd.className = "dot dot-red";
+                    ss.innerText = "Tap START to begin auto-accepting orders";
+                    sb.className = "start-btn-container"; sl.innerText = "START"; si.innerText = "▶"; si.style.color = "#e11d48";
+                }
+            }
+        }
+    </script>
+</body>
+</html>
