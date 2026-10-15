@@ -23,7 +23,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Pure Rapido Instant Auto-Click & Swipe Accessibility Service -->
+        <!-- Pure Rapido Instant Auto-Click & Touch Bounds Accessibility Service -->
         <service
             android:name=".RapidoAutoClickService"
             android:exported="false"
