@@ -121,7 +121,7 @@ public class RapidoAutoClickService extends AccessibilityService {
         String priceDisplayStr = "Rs. 0";
 
         if (!priceText.isEmpty()) {
-            Pattern multiPattern = Pattern.compile("₹?\\s*(\\d+)\\s*\\+\\s*₹?\\s*(\\d+)");
+            Pattern multiPattern = Pattern.compile("₹?\s*(\d+)\s*\+\s*₹?\s*(\d+)");
             Matcher mMulti = multiPattern.matcher(priceText);
             if (mMulti.find()) {
                 basePrice = Integer.parseInt(mMulti.group(1));
@@ -129,7 +129,7 @@ public class RapidoAutoClickService extends AccessibilityService {
                 totalPrice = basePrice + tipPrice;
                 priceDisplayStr = "Rs. " + basePrice + " + Rs. " + tipPrice;
             } else {
-                Pattern singlePattern = Pattern.compile("₹?\\s*(\\d+)");
+                Pattern singlePattern = Pattern.compile("₹?\s*(\d+)");
                 Matcher mSingle = singlePattern.matcher(priceText);
                 if (mSingle.find()) {
                     basePrice = Integer.parseInt(mSingle.group(1));
@@ -331,7 +331,7 @@ public class RapidoAutoClickService extends AccessibilityService {
         String lower = fullText.toString().toLowerCase();
 
         // Match distance
-        Pattern distPattern = Pattern.compile("(\\d+(\\.\\d+)?)\\s*(km|m)", Pattern.CASE_INSENSITIVE);
+        Pattern distPattern = Pattern.compile("(\d+(\.\d+)?)\s*(km|m)", Pattern.CASE_INSENSITIVE);
         Matcher mDist = distPattern.matcher(fullText);
         if (mDist.find()) {
             dropKm = mDist.group(0);

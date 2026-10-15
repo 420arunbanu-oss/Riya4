@@ -85,7 +85,7 @@
             <div class="divider"><span class="divider-text">OR</span></div>
             <div style="text-align:center; color:#94a3b8; font-size:11px; margin-bottom:8px;">Don't have an account?</div>
             <button class="btn-glow-purple" style="padding:12px;" onclick="showRegisterPage()">➕ CREATE NEW ACCOUNT</button>
-            <button class="btn-whatsapp" style="margin-top:10px;" onclick="sendToAutoJS('SUPPORT')">💬 CONTACT ADMIN VIA WHATSAPP</button>
+            <button class="btn-whatsapp" style="margin-top:10px;" onclick="openWhatsAppDirect()">💬 CONTACT ADMIN VIA WHATSAPP</button>
         </div>
     </div>
 
@@ -115,7 +115,7 @@
             <input type="text" id="waitDriverEmail" readonly style="background:#090d16; color:#e2e8f0; font-weight:bold; margin-top:6px; border:1px solid #1e293b;">
             <div id="premiumPlansWait"></div>
             <button class="btn-glow-blue" style="width:100%; padding:12px; margin-top:12px; font-size:12px; font-weight:bold;" onclick="checkStatusAction()">🔄 CHECK PAYMENT / ACCOUNT STATUS</button>
-            <button class="btn-whatsapp" style="margin-top:10px;" onclick="sendToAutoJS('SUPPORT')">💬 CONTACT ADMIN VIA WHATSAPP</button>
+            <button class="btn-whatsapp" style="margin-top:10px;" onclick="openWhatsAppDirect()">💬 CONTACT ADMIN VIA WHATSAPP</button>
             <button class="btn-red" style="width:100%; padding:12px; margin-top:10px; font-size:12px;" onclick="sendToAutoJS('LOGOUT')">🚪 LOGOUT</button>
         </div>
     </div>
@@ -127,7 +127,7 @@
             <div style="color:#fbbf24; font-size:13px; font-weight:bold; margin-top:4px;">Checking payment status…</div>
             <div style="color:#94a3b8; font-size:12px; margin-top:14px; line-height:1.6;">Payment confirmation is being synced with the server. Your premium validity will start from the successful payment activation time.</div>
             <div class="grid-2" style="margin-top:16px;"><button class="btn-red" style="padding:12px;" onclick="sendToAutoJS('LOGOUT')">LOGOUT</button><button class="btn-glow-blue" style="padding:12px;" onclick="sendToAutoJS('CHECK_STATUS')">CHECK STATUS 🔄</button></div>
-            <button class="btn-whatsapp" style="margin-top:10px;" onclick="sendToAutoJS('SUPPORT')">💬 CONTACT ADMIN (WHATSAPP)</button>
+            <button class="btn-whatsapp" style="margin-top:10px;" onclick="openWhatsAppDirect()">💬 CONTACT ADMIN (WHATSAPP)</button>
         </div>
     </div>
 
@@ -165,7 +165,7 @@
                 <div>
                     <div style="font-weight:900; font-size:14px; color:#ffffff; letter-spacing:0.5px;">NURA <span style="color:#38bdf8;">AUTO CLICKER</span></div>
                     <div style="color:#10b981; font-size:9px; font-weight:bold; display:flex; align-items:center; margin-top:2px;">
-                        <span class="dot dot-green" style="width:6px; height:6px;"></span> Rapido Exclusive Supported
+                        <span class="dot dot-green" style="width:6px; height:6px;"></span> Rapido & Ola Supported
                     </div>
                 </div>
             </div>
@@ -179,7 +179,7 @@
                 <div style="font-size:20px; margin-right:10px;">⚡</div>
                 <div>
                     <div style="font-weight:bold; color:#10b981; font-size:11px;">ULTRA SPEED ENGINE (v48.0)</div>
-                    <div style="color:#94a3b8; font-size:9px;">Realtime Sync & Rapido Auto Protect</div>
+                    <div style="color:#94a3b8; font-size:9px;">Realtime Sync & Zero-ANR Engine</div>
                 </div>
             </div>
             <div style="background:rgba(16,185,129,0.15); border:1px solid #10b981; color:#34d399; padding:4px 8px; border-radius:8px; font-size:9px; font-weight:bold;">100% READY</div>
@@ -289,7 +289,7 @@
                 <span style="color:#10b981; font-size:18px; font-weight:bold;">›</span>
             </div>
             <div class="grid-2">
-                <div class="quick-action-item flex" onclick="sendToAutoJS('SUPPORT')">
+                <div class="quick-action-item flex" onclick="openWhatsAppDirect()">
                     <span style="font-size:16px; margin-right:8px;">💬</span>
                     <div><div style="font-weight:bold; font-size:11px;">SUPPORT</div><div style="color:#64748b; font-size:9px;">WhatsApp Admin</div></div>
                 </div>
@@ -302,7 +302,7 @@
         <div class="bottom-nav">
             <div class="nav-item active" onclick="showDashboardView()"><div style="font-size:16px;">🏠</div><div>Home</div></div>
             <div class="nav-item" onclick="showPlansView()"><div style="font-size:16px;">📊</div><div>Plans</div></div>
-            <div class="nav-item" onclick="sendToAutoJS('SUPPORT')"><div style="font-size:16px;">💬</div><div>Support</div></div>
+            <div class="nav-item" onclick="openWhatsAppDirect()"><div style="font-size:16px;">💬</div><div>Support</div></div>
             <div class="nav-item" onclick="showPermissionSettingsView()"><div style="font-size:16px;">⚙️</div><div>Settings</div></div>
         </div>
     </div>
@@ -338,35 +338,67 @@
             "Vilankurichi", "Kanuvai", "Pannimadai", "Gandhipuram", "Tatabad",
             "Vedapatty", "Peelamedu", "Railway Jn CBT", "Railway Station"
         ];
-        var serverAllowPrice = false; var serverAllowArea = false; var savedSelectedAreas = []; var savedCustomAreas = [];
+        var serverAllowPrice = true; var serverAllowArea = true; var savedSelectedAreas = []; var savedCustomAreas = [];
         var activePlanIndex = 0; var activePlanName = PREMIUM_PLANS[0].name; var activePlanAmount = PREMIUM_PLANS[0].amount; var activePlanDays = PREMIUM_PLANS[0].days;
 
         function sendToAutoJS(act, data) {
             var payload = JSON.stringify({ action: act, data: data || {} });
             try {
-                if (window.autoxBridge && typeof window.autoxBridge.postMessage === 'function') {
+                if (window.autoxBridge && typeof window.autoxBridge.postMessage === "function") {
                     window.autoxBridge.postMessage(payload);
                     return;
                 }
             } catch(e) {}
             try {
-                if (window.$autox && typeof window.$autox.callHandler === 'function') {
-                    window.$autox.callHandler('nativeAction', payload, function() {});
+                if (window.autoxBridge && typeof window.autoxBridge.call === "function") {
+                    window.autoxBridge.call(payload);
                     return;
                 }
             } catch(e) {}
         }
 
+        function openWhatsAppDirect() {
+            sendToAutoJS("SUPPORT", {});
+            try {
+                var email = document.getElementById("emailInput") ? document.getElementById("emailInput").value.trim() : "";
+                var waUrl = "https://wa.me/917708271310?text=" + encodeURIComponent("வணக்கம் Admin, நான் Nura Auto Clicker ஆப்பில் இருந்து தொடர்பு கொள்கிறேன். உதவி தேவை.\nEmail: " + (email || "Not Logged In"));
+                window.open(waUrl, "_blank");
+            } catch(e) {}
+        }
+
         function doLogin() {
-            var email = document.getElementById("emailInput").value.trim(), pass = document.getElementById("passInput").value.trim();
-            if (!email || !pass) { alert("Email and Password are required!"); return; }
+            var emailElem = document.getElementById("emailInput");
+            var passElem = document.getElementById("passInput");
+            var email = emailElem ? emailElem.value.trim() : "";
+            var pass = passElem ? passElem.value.trim() : "";
+            if (!email || !pass) {
+                alert("Email and Password are required!");
+                return;
+            }
             sendToAutoJS("LOGIN", { email: email, pass: pass });
         }
-        function showRegisterPage() { document.getElementById("loginView").classList.add("hidden"); document.getElementById("registerView").classList.remove("hidden"); }
-        function showLoginPage() { document.getElementById("registerView").classList.add("hidden"); document.getElementById("loginView").classList.remove("hidden"); }
+
+        function showRegisterPage() {
+            document.getElementById("loginView").classList.add("hidden");
+            document.getElementById("registerView").classList.remove("hidden");
+        }
+
+        function showLoginPage() {
+            document.getElementById("registerView").classList.add("hidden");
+            document.getElementById("loginView").classList.remove("hidden");
+        }
+
         function doRegister() {
-            var email = document.getElementById("regEmailInput").value.trim(), pass = document.getElementById("regPassInput").value.trim(), vehicleType = document.getElementById("regVehicleInput").value;
-            if (!email || !pass) { alert("Email and Password are required!"); return; }
+            var emailElem = document.getElementById("regEmailInput");
+            var passElem = document.getElementById("regPassInput");
+            var vehElem = document.getElementById("regVehicleInput");
+            var email = emailElem ? emailElem.value.trim() : "";
+            var pass = passElem ? passElem.value.trim() : "";
+            var vehicleType = vehElem ? vehElem.value : "Auto";
+            if (!email || !pass) {
+                alert("Email and Password are required!");
+                return;
+            }
             sendToAutoJS("REGISTER", { email: email, pass: pass, vehicleType: vehicleType });
         }
 
@@ -375,10 +407,10 @@
             var h = "";
             for (var i = 0; i < PREMIUM_PLANS.length; i++) {
                 var p = PREMIUM_PLANS[i];
-                h += '<div onclick="selectPremiumPlan(' + i + ')" style="margin-bottom:10px;min-height:102px;padding:18px 14px;border-radius:24px;border:1px solid rgba(16,185,129,.28);background:#11151e;display:flex;align-items:center;gap:10px;box-sizing:border-box;cursor:pointer;">' +
-                     '<div style="flex:1;min-width:0;"><div style="font-size:17px;font-weight:900;color:#fff;">' + p.name + '</div><div style="color:#94a3b8;font-size:11px;margin-top:6px;">' + p.days + ' day' + (p.days > 1 ? "s" : "") + '</div></div>' +
-                     '<div style="font-size:25px;font-weight:900;color:#10f59b;white-space:nowrap;">₹' + p.amount + '</div>' +
-                     '<button class="btn-green" style="width:112px;min-width:112px;padding:12px 8px;font-size:13px;font-weight:900;border-radius:24px;" onclick="event.stopPropagation();selectPremiumPlan(' + i + ');paySelectedPlan()">PAY</button></div>';
+                h += "<div onclick=\"selectPremiumPlan(" + i + ")\" style=\"margin-bottom:10px;min-height:102px;padding:18px 14px;border-radius:24px;border:1px solid rgba(16,185,129,.28);background:#11151e;display:flex;align-items:center;gap:10px;box-sizing:border-box;cursor:pointer;\">" +
+                     "<div style=\"flex:1;min-width:0;\"><div style=\"font-size:17px;font-weight:900;color:#fff;\">" + p.name + "</div><div style=\"color:#94a3b8;font-size:11px;margin-top:6px;\">" + p.days + " day" + (p.days > 1 ? "s" : "") + "</div></div>" +
+                     "<div style=\"font-size:25px;font-weight:900;color:#10f59b;white-space:nowrap;\">₹" + p.amount + "</div>" +
+                     "<button class=\"btn-green\" style=\"width:112px;min-width:112px;padding:12px 8px;font-size:13px;font-weight:900;border-radius:24px;\" onclick=\"event.stopPropagation();selectPremiumPlan(" + i + ");paySelectedPlan()\">PAY</button></div>";
             }
             el.innerHTML = h;
         }
@@ -394,13 +426,13 @@
         function paySelectedPlan() {
             try {
                 var p = PREMIUM_PLANS[activePlanIndex];
-                var emailInputElem = document.getElementById('waitDriverEmail');
-                var userEmail = emailInputElem ? emailInputElem.value.trim() : 'driver_user';
-                var paymentUrl = 'https://arunmichealraj33-alt.github.io/payment-page/';
-                var finalUrl = paymentUrl + '?userid=' + encodeURIComponent(userEmail) + '&plan=' + encodeURIComponent(p.name) + '&amount=' + p.amount + '&days=' + p.days;
+                var emailInputElem = document.getElementById("waitDriverEmail");
+                var userEmail = emailInputElem ? emailInputElem.value.trim() : "driver_user";
+                var paymentUrl = "https://arunmichealraj33-alt.github.io/payment-page/";
+                var finalUrl = paymentUrl + "?userid=" + encodeURIComponent(userEmail) + "&plan=" + encodeURIComponent(p.name) + "&amount=" + p.amount + "&days=" + p.days;
                 sendToAutoJS("OPEN_URL", { url: finalUrl });
             } catch(e) {
-                alert('Payment Redirect Exception: ' + e);
+                alert("Payment Redirect Exception: " + e);
             }
         }
 
@@ -464,21 +496,27 @@
         }
 
         function renderCustomAreas() {
-            var box = document.getElementById('areaChecklist'); if (!box) return;
-            var h = '';
+            var box = document.getElementById("areaChecklist"); if (!box) return;
+            var h = "";
             for (var i = 0; i < areaList.length; i++) {
-                var n = areaList[i], ck = isAreaSelected(n) ? ' checked' : '';
-                h += '<label style="display:flex;align-items:center;gap:10px;background:#0b1220;border:1px solid rgba(56,189,248,0.18);border-radius:10px;padding:10px 11px;margin-bottom:6px;cursor:pointer;"><input type="checkbox" data-area="' + escapeHtml(n) + '" ' + ck + ' onchange="toggleAreaSelection(this.getAttribute(\\'data-area\\'),this.checked)" style="width:18px;height:18px;accent-color:#10b981;"><span style="color:#e2e8f0;font-size:12px;font-weight:bold;">' + escapeHtml(n) + '</span></label>';
+                var n = areaList[i], ck = isAreaSelected(n) ? " checked" : "";
+                h += "<label style=\"display:flex;align-items:center;gap:10px;background:#0b1220;border:1px solid rgba(56,189,248,0.18);border-radius:10px;padding:10px 11px;margin-bottom:6px;cursor:pointer;\">" +
+                     "<input type=\"checkbox\" data-area=\"" + escapeHtml(n) + "\" " + ck + " onchange=\"toggleAreaSelection(this.dataset.area, this.checked)\" style=\"width:18px;height:18px;accent-color:#10b981;\">" +
+                     "<span style=\"color:#e2e8f0;font-size:12px;font-weight:bold;\">" + escapeHtml(n) + "</span></label>";
             }
             for (var j = 0; j < savedCustomAreas.length; j++) {
-                var c = savedCustomAreas[j], cc = isAreaSelected(c) ? ' checked' : '';
-                h += '<div style="display:flex;align-items:center;gap:8px;background:#071827;border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:9px 10px;margin-bottom:6px;"><label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;"><input type="checkbox" data-area="' + escapeHtml(c) + '" ' + cc + ' onchange="toggleAreaSelection(this.getAttribute(\\'data-area\\'),this.checked)" style="width:18px;height:18px;accent-color:#10b981;"><span style="color:#e2e8f0;font-size:12px;font-weight:bold;">' + escapeHtml(c) + ' <span style="color:#38bdf8;font-size:9px;">CUSTOM</span></span></label><button onclick="removeCustomArea(' + j + ')" style="background:none;border:0;color:#f87171;font-size:18px;padding:2px 6px;cursor:pointer;">×</button></div>';
+                var c = savedCustomAreas[j], cc = isAreaSelected(c) ? " checked" : "";
+                h += "<div style=\"display:flex;align-items:center;gap:8px;background:#071827;border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:9px 10px;margin-bottom:6px;\">" +
+                     "<label style=\"display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;\">" +
+                     "<input type=\"checkbox\" data-area=\"" + escapeHtml(c) + "\" " + cc + " onchange=\"toggleAreaSelection(this.dataset.area, this.checked)\" style=\"width:18px;height:18px;accent-color:#10b981;\">" +
+                     "<span style=\"color:#e2e8f0;font-size:12px;font-weight:bold;\">" + escapeHtml(c) + " <span style=\"color:#38bdf8;font-size:9px;\">CUSTOM</span></span></label>" +
+                     "<button onclick=\"removeCustomArea(" + j + ")\" style=\"background:none;border:0;color:#f87171;font-size:18px;padding:2px 6px;cursor:pointer;\">×</button></div>";
             }
             box.innerHTML = h;
         }
 
         function toggleAreaSelection(name, checked) {
-            if (!serverAllowArea) { renderCustomAreas(); sendToAutoJS('SHOW_TOAST', 'Area filter is not enabled by admin!'); return; }
+            if (!serverAllowArea) { renderCustomAreas(); sendToAutoJS("SHOW_TOAST", "Area filter is not enabled by admin!"); return; }
             setAreaSelected(name, checked); renderCustomAreas();
         }
 
@@ -517,7 +555,7 @@
                 bb.className = data.hasBattery ? "perm-btn perm-btn-active" : "perm-btn";
                 bb.innerText = data.hasBattery ? "✓ ENABLED" : "ENABLE ➔";
             }
-            serverAllowPrice = data.allowPrice; serverAllowArea = data.allowArea;
+            serverAllowPrice = data.allowPrice !== false; serverAllowArea = data.allowArea !== false;
             if (data.minPrice) document.getElementById("minPriceInput").value = data.minPrice;
             if (data.maxPrice) document.getElementById("maxPriceInput").value = data.maxPrice;
             if (data.selectedAreas) savedSelectedAreas = data.selectedAreas;

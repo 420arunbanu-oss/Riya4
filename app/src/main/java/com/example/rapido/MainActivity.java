@@ -15,8 +15,11 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
+import android.webkit.JsResult;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -72,6 +75,32 @@ public class MainActivity extends Activity {
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
 
+        // Chrome client handles javascript alerts and dialogs
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                showToast(message);
+                result.confirm();
+                return true;
+            }
+        });
+
+        // WebViewClient handles external links (WhatsApp, Payments, Browser)
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                if (url != null && (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("intent://") || url.startsWith("whatsapp://"))) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        return true;
+                    } catch (Exception ignored) {}
+                }
+                return false;
+            }
+        });
+
         webView.addJavascriptInterface(new WebAppInterface(), "autoxBridge");
         webView.loadUrl("file:///android_asset/ui.html");
 
@@ -86,7 +115,7 @@ public class MainActivity extends Activity {
                     fetchPermissionsFromFirebase(email);
                 }
             }
-        }, 1200);
+        }, 1000);
     }
 
     @Override
@@ -194,6 +223,11 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void call(final String jsonStr) {
+            postMessage(jsonStr);
+        }
     }
 
     private void handleNativeAction(String jsonStr) {
@@ -269,13 +303,13 @@ public class MainActivity extends Activity {
                     String email = storage.getString("email", "Not Logged In");
                     String pass = storage.getString("user_password", "******");
                     int dIdx = storage.getInt("driver_index", 1);
-                    String waMsg = "வணக்கம் Admin, நான் பணம் செலுத்திவிட்டேன். ஸ்கிரீன்ஷாட் அனுப்பியுள்ளேன்.\\n" +
-                            "Email: " + email + "\\n" +
-                            "Password: " + pass + "\\n" +
-                            "Driver No: #" + dIdx + "\\n" +
+                    String waMsg = "வணக்கம் Admin, நான் Nura Auto Clicker ஆப்பில் இருந்து தொடர்பு கொள்கிறேன்.\n" +
+                            "Email: " + email + "\n" +
+                            "Password: " + pass + "\n" +
+                            "Driver No: #" + dIdx + "\n" +
                             "Selected Plan: " + planDetails;
                     try {
-                        String waUrl = "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + Uri.encode(waMsg);
+                        String waUrl = "https://api.whatsapp.com/send?phone=" + WHATSAPP_NUMBER + "&text=" + Uri.encode(waMsg);
                         Intent waIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(waUrl));
                         waIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(waIntent);
@@ -386,7 +420,7 @@ public class MainActivity extends Activity {
                         syncUIState();
                         showToast("✅ Login successful!");
                     } else {
-                        showToast("❌ Account not found! Please register.");
+                        showToast("❌ Account not found! Please tap 'CREATE NEW ACCOUNT' to register your 1-Day Demo.");
                     }
                 } catch (Exception e) {
                     showToast("❌ Login Exception: " + e.getMessage());
@@ -400,7 +434,7 @@ public class MainActivity extends Activity {
             showToast("❌ Email and password required!");
             return;
         }
-        showToast("⏳ Creating 1-Day Demo account...");
+        showToast("⏳ Creating 1-Day Demo account in Firebase...");
         networkExecutor.execute(new Runnable() {
             @Override
             public void run() {
@@ -448,7 +482,7 @@ public class MainActivity extends Activity {
                         syncUIState();
                         showToast("🎉 Demo Account Created! 1-Day Demo Active. Driver #" + assignedIndex);
                     } else {
-                        showToast("❌ Registration failed on server.");
+                        showToast("❌ Registration failed on Firebase server.");
                     }
                 } catch (Exception e) {
                     showToast("❌ Error: " + e.getMessage());
