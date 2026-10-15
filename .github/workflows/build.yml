@@ -60,11 +60,8 @@ jobs:
 
     - name: Step 7 - Build Rapido Auto Clicker APK
       run: |
-        if [ -f "./gradlew" ]; then
-          ./gradlew assembleDebug --no-daemon --stacktrace
-        else
-          gradle assembleDebug --no-daemon --stacktrace
-        fi
+        chmod +x ./gradlew || true
+        ./gradlew assembleDebug --no-daemon --stacktrace
 
     - name: Step 8 - Locate and Collect APK
       run: |
