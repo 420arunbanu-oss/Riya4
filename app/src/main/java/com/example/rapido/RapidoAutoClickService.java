@@ -44,69 +44,74 @@ public class RapidoAutoClickService extends AccessibilityService {
         if (rootNode == null) return;
 
         long now = System.currentTimeMillis();
-        if (now - lastClickTime < 700) return;
+        if (now - lastClickTime < 600) return;
 
-        boolean accepted = scanAndTriggerAccept(rootNode);
+        // Exact scanning & accept engine from user's file:
+        boolean accepted = handleRapidoOffer(rootNode);
         if (accepted) {
             lastClickTime = now;
             vibratePhone();
         }
     }
 
-    private boolean scanAndTriggerAccept(AccessibilityNodeInfo root) {
-        String[] textCandidates = new String[] {
-            "Accept", "ACCEPT", "accept",
-            "ஏற்றுக்கொள்", "स्वीकार करें",
-            "Tap to accept", "TAP TO ACCEPT",
-            "Accept Order", "ACCEPT ORDER"
-        };
+    private boolean handleRapidoOffer(AccessibilityNodeInfo root) {
+        // 1. Search for Accept button ("Accept" or "ஏற்றுக்கொள்")
+        List<AccessibilityNodeInfo> acceptButtons = root.findAccessibilityNodeInfosByText("Accept");
+        if (acceptButtons == null || acceptButtons.isEmpty()) {
+            acceptButtons = root.findAccessibilityNodeInfosByText("ஏற்றுக்கொள்");
+        }
+        if (acceptButtons == null || acceptButtons.isEmpty()) {
+            acceptButtons = root.findAccessibilityNodeInfosByText("ACCEPT");
+        }
+        if (acceptButtons == null || acceptButtons.isEmpty()) {
+            acceptButtons = root.findAccessibilityNodeInfosByText("Tap to accept");
+        }
 
-        for (String candidate : textCandidates) {
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(candidate);
-            if (nodes != null && !nodes.isEmpty()) {
-                for (AccessibilityNodeInfo node : nodes) {
-                    if (clickByBoundsXY(node)) {
+        if (acceptButtons != null && !acceptButtons.isEmpty()) {
+            for (AccessibilityNodeInfo btn : acceptButtons) {
+                if (btn != null) {
+                    if (triggerAccept(btn)) {
                         return true;
                     }
                 }
             }
         }
 
-        String[] idCandidates = new String[] {
+        // 2. Rapido Captain View IDs Search
+        String[] viewIds = new String[] {
             "com.rapido.captain:id/btn_accept",
             "com.rapido.captain:id/accept_order_btn",
             "com.rapido.captain:id/btnAccept",
             "com.rapido.captain:id/accept_button",
-            "com.rapido.captain:id/action_button",
             "com.rapido.captain:id/primary_action",
-            "com.rapido.rider:id/btn_accept",
-            "btn_accept", "accept", "accept_order"
+            "btn_accept"
         };
-
-        for (String id : idCandidates) {
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
-            if (nodes != null && !nodes.isEmpty()) {
-                for (AccessibilityNodeInfo node : nodes) {
-                    if (clickByBoundsXY(node)) {
+        for (String id : viewIds) {
+            List<AccessibilityNodeInfo> idNodes = root.findAccessibilityNodeInfosByViewId(id);
+            if (idNodes != null && !idNodes.isEmpty()) {
+                for (AccessibilityNodeInfo node : idNodes) {
+                    if (node != null && triggerAccept(node)) {
                         return true;
                     }
                 }
             }
         }
 
-        // Rupee Symbol ₹ detection - find Accept in active offer card
+        // 3. Rupee ₹ Symbol active offer card search
         List<AccessibilityNodeInfo> rupeeNodes = root.findAccessibilityNodeInfosByText("₹");
         if (rupeeNodes != null && !rupeeNodes.isEmpty()) {
             for (AccessibilityNodeInfo rNode : rupeeNodes) {
-                AccessibilityNodeInfo currentParent = rNode.getParent();
+                AccessibilityNodeInfo parent = rNode.getParent();
                 int depth = 0;
-                while (currentParent != null && depth < 4) {
+                while (parent != null && depth < 4) {
                     Rect rect = new Rect();
-                    currentParent.getBoundsInScreen(rect);
-                    if (currentParent.isClickable() && rect.width() > 100) {
-                        return clickByBoundsXY(currentParent);
+                    parent.getBoundsInScreen(rect);
+                    if (parent.isClickable() && rect.width() > 100) {
+                        if (triggerAccept(parent)) {
+                            return true;
+                        }
                     }
-                    currentParent = currentParent.getParent();
+                    parent = parent.getParent();
                     depth++;
                 }
             }
@@ -115,53 +120,31 @@ public class RapidoAutoClickService extends AccessibilityService {
         return false;
     }
 
-    /**
-     * Exact (X, Y) Bounds Millisecond Click:
-     * Reads node.getBoundsInScreen(rect) -> calculates exact center (x, y) pixels.
-     * Dispatches hardware touch directly to screen coordinates in milliseconds.
-     * Also triggers accessibility ACTION_CLICK simultaneously.
-     */
-    private boolean clickByBoundsXY(AccessibilityNodeInfo node) {
-        if (node == null) return false;
+    private boolean triggerAccept(AccessibilityNodeInfo btn) {
+        // Direct Click as in user's file
+        boolean clicked = false;
+        if (btn.isClickable() && btn.isEnabled()) {
+            clicked = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        }
 
+        if (!clicked) {
+            AccessibilityNodeInfo parent = btn.getParent();
+            if (parent != null && parent.isClickable()) {
+                clicked = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+        }
+
+        // (X, Y) Bounds Millisecond Click
         Rect rect = new Rect();
-        node.getBoundsInScreen(rect);
-
-        boolean gestureDispatched = false;
-
-        // 1. Direct Hardware Screen (X, Y) Bounds Tap in 50 Milliseconds
+        btn.getBoundsInScreen(rect);
         if (rect.width() > 0 && rect.height() > 0) {
             float clickX = (float) rect.centerX();
             float clickY = (float) rect.centerY();
-            gestureDispatched = clickXY(clickX, clickY);
-
-            // If wide button/slider, also trigger horizontal swipe gesture!
-            if (rect.width() > 180) {
-                float startX = rect.left + 50f;
-                float endX = rect.right - 50f;
-                float midY = (float) rect.centerY();
-                swipeXY(startX, midY, endX, midY);
-            }
+            boolean gestureOk = clickXY(clickX, clickY);
+            if (gestureOk) clicked = true;
         }
 
-        // 2. Parallel Node Accessibility Click
-        boolean actionClicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-        if (!actionClicked) {
-            AccessibilityNodeInfo p1 = node.getParent();
-            if (p1 != null) {
-                actionClicked = p1.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                if (!actionClicked) {
-                    AccessibilityNodeInfo p2 = p1.getParent();
-                    if (p2 != null) {
-                        actionClicked = p2.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    }
-                }
-            }
-        }
-
-        return gestureDispatched || actionClicked;
-    }
-
+        return clicked;
     private boolean clickXY(float x, float y) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Path path = new Path();
