@@ -1,5 +1,9 @@
 package com.example.rapido;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -8,6 +12,7 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -16,9 +21,13 @@ import android.widget.TextView;
 
 public class FloatingSwitchService extends Service {
 
+    private static final String CHANNEL_ID = "rapido_fg_channel";
+    private static final int NOTIFICATION_ID = 1001;
+
     private WindowManager windowManager;
     private TextView floatingView;
     private SharedPreferences prefs;
+    private PowerManager.WakeLock wakeLock;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -30,10 +39,91 @@ public class FloatingSwitchService extends Service {
         super.onCreate();
         prefs = getSharedPreferences("rapido_auto_prefs", Context.MODE_PRIVATE);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+
+        // Keep CPU active in background while user watches videos/YouTube
+        acquireWakeLock();
+
+        // Start Foreground Service with persistent ongoing status notification
+        startForegroundServiceWithNotification();
+
+        // Create draggable floating bubble overlay
         createFloatingSwitch();
     }
 
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        startForegroundServiceWithNotification();
+        return START_STICKY;
+    }
+
+    private void acquireWakeLock() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && wakeLock == null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RapidoAutoClicker:WakeLock");
+                wakeLock.setReferenceCounted(false);
+                wakeLock.acquire(12 * 60 * 60 * 1000L); // 12 hours
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void releaseWakeLock() {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void startForegroundServiceWithNotification() {
+        try {
+            boolean isEnabled = prefs != null && prefs.getBoolean("is_auto_accept_on", true);
+
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(
+                        CHANNEL_ID,
+                        "Rapido Background Monitor",
+                        NotificationManager.IMPORTANCE_LOW
+                );
+                channel.setDescription("Background active order monitoring while watching videos");
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    nm.createNotificationChannel(channel);
+                }
+                builder = new Notification.Builder(this, CHANNEL_ID);
+            } else {
+                builder = new Notification.Builder(this);
+            }
+
+            int iconRes = getApplicationInfo().icon;
+            if (iconRes == 0) iconRes = android.R.drawable.ic_dialog_info;
+
+            Intent openApp = new Intent(this, MainActivity.class);
+            openApp.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                    this,
+                    0,
+                    openApp,
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0
+            );
+
+            Notification notification = builder
+                    .setSmallIcon(iconRes)
+                    .setContentTitle("⚡ Rapido Auto Clicker: " + (isEnabled ? "ON (இயங்குகிறது)" : "OFF (இடைநிறுத்தப்பட்டது)"))
+                    .setContentText(isEnabled ? "வீடியோ பார்க்கும் போதும் பின்னணியில் ஆர்டர்களை ஏற்கும்" : "மிதக்கும் சுவிட்சைத் தொட்டு ஆன் செய்யவும்")
+                    .setContentIntent(pendingIntent)
+                    .setOngoing(true)
+                    .build();
+
+            startForeground(NOTIFICATION_ID, notification);
+        } catch (Exception ignored) {}
+    }
+
     private void createFloatingSwitch() {
+        if (floatingView != null) return;
+
         int layoutType;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
@@ -52,7 +142,7 @@ public class FloatingSwitchService extends Service {
         params.x = 30;
         params.y = 250;
 
-        boolean isEnabled = prefs.getBoolean("is_auto_accept_on", true);
+        boolean isEnabled = prefs != null && prefs.getBoolean("is_auto_accept_on", true);
 
         floatingView = new TextView(this);
         floatingView.setText(isEnabled ? "⚡ RAPIDO: ON" : "⏸ RAPIDO: OFF");
@@ -66,9 +156,10 @@ public class FloatingSwitchService extends Service {
             public void onClick(View v) {
                 boolean current = prefs.getBoolean("is_auto_accept_on", true);
                 boolean next = !current;
-                prefs.edit().putBoolean("is_auto_accept_on", next).apply();
+                prefs.edit().putBoolean("is_auto_accept_on", next).commit();
                 floatingView.setText(next ? "⚡ RAPIDO: ON" : "⏸ RAPIDO: OFF");
                 floatingView.setBackgroundColor(next ? Color.parseColor("#10B981") : Color.parseColor("#EF4444"));
+                startForegroundServiceWithNotification();
             }
         });
 
@@ -91,7 +182,9 @@ public class FloatingSwitchService extends Service {
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
                         params.y = initialY + (int) (event.getRawY() - initialTouchY);
                         if (windowManager != null && floatingView != null) {
-                            windowManager.updateViewLayout(floatingView, params);
+                            try {
+                                windowManager.updateViewLayout(floatingView, params);
+                            } catch (Exception ignored) {}
                         }
                         return true;
                 }
@@ -109,6 +202,7 @@ public class FloatingSwitchService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        releaseWakeLock();
         if (floatingView != null && windowManager != null) {
             try {
                 windowManager.removeView(floatingView);

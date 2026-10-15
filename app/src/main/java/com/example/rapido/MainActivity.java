@@ -23,11 +23,15 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
 
     private SharedPreferences prefs;
+    private Switch masterSwitch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences("rapido_auto_prefs", Context.MODE_PRIVATE);
+
+        // Auto-start foreground overlay service if overlay permission is already granted
+        startOverlayServiceIfAllowed();
 
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(Color.parseColor("#0F172A"));
@@ -53,7 +57,7 @@ public class MainActivity extends Activity {
 
         // Master Switch
         boolean isAutoOn = prefs.getBoolean("is_auto_accept_on", true);
-        Switch masterSwitch = new Switch(this);
+        masterSwitch = new Switch(this);
         masterSwitch.setText("⚡ ஆட்டோ-அக்செப்ட் சுவிட்ச் (Master Auto-Accept)");
         masterSwitch.setTextSize(17);
         masterSwitch.setTextColor(Color.WHITE);
@@ -63,14 +67,15 @@ public class MainActivity extends Activity {
         masterSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                prefs.edit().putBoolean("is_auto_accept_on", isChecked).apply();
+                prefs.edit().putBoolean("is_auto_accept_on", isChecked).commit();
+                startOverlayServiceIfAllowed();
             }
         });
         root.addView(masterSwitch);
 
         // Step 1: Accessibility Button
         Button accessibilityBtn = new Button(this);
-        accessibilityBtn.setText("1. Accessibility அனுமதி ஆன் செய்க (Accessibility Service)");
+        accessibilityBtn.setText("1. Accessibility அனுமதி ஆன் செய்க (ACCESSIBILITY SERVICE)");
         accessibilityBtn.setBackgroundColor(Color.parseColor("#10B981"));
         accessibilityBtn.setTextColor(Color.BLACK);
         accessibilityBtn.setTextSize(14);
@@ -88,7 +93,7 @@ public class MainActivity extends Activity {
 
         // Step 2: Floating Switch Button
         Button overlayBtn = new Button(this);
-        overlayBtn.setText("2. மிதக்கும் சுவிட்ச் ஆன் செய்க (Floating Switch over Video)");
+        overlayBtn.setText("2. மிதக்கும் சுவிட்ச் ஆன் செய்க (FLOATING SWITCH OVER VIDEO)");
         overlayBtn.setBackgroundColor(Color.parseColor("#3B82F6"));
         overlayBtn.setTextColor(Color.WHITE);
         overlayBtn.setTextSize(14);
@@ -100,7 +105,7 @@ public class MainActivity extends Activity {
                             Uri.parse("package:" + getPackageName()));
                     startActivity(intent);
                 } else {
-                    startService(new Intent(MainActivity.this, FloatingSwitchService.class));
+                    launchFloatingForegroundService();
                 }
             }
         });
@@ -112,7 +117,7 @@ public class MainActivity extends Activity {
 
         // Step 3: Battery Optimization Button
         Button batteryBtn = new Button(this);
-        batteryBtn.setText("3. பேட்டரி சேவர் விலக்கு (Battery Optimization Settings)");
+        batteryBtn.setText("3. பேட்டரி சேவர் விலக்கு (BATTERY OPTIMIZATION SETTINGS)");
         batteryBtn.setBackgroundColor(Color.parseColor("#F59E0B"));
         batteryBtn.setTextColor(Color.BLACK);
         batteryBtn.setTextSize(14);
@@ -143,7 +148,7 @@ public class MainActivity extends Activity {
 
         // Info TextView
         TextView infoBox = new TextView(this);
-        infoBox.setText("💡 பயன்பாட்டு குறிப்புகள்:\n\n• நீங்கள் வீடியோ பார்த்துக் கொண்டிருக்கும் போதும், வாட்ஸ்அப்பில் இருக்கும் போதும் Rapido Captain ஆப்பில் ஆர்டர் வந்த உடனே 0.1 நொடியில் தானாக கிளிக் செய்து ஏற்கும்.\n\n• குறைந்தபட்ச விலை போன்ற எந்த குழப்பமும் இல்லை; சுவிட்ச் ஆன் செய்திருந்தால் அனைத்து ஆர்டர்களும் உடனே ஏற்கப்படும்.\n\n• திரையின் மேல் உள்ள மிதக்கும் சுவிட்சை (Floating Switch) தொட்டு எப்போது வேண்டுமானாலும் ON/OFF செய்து கொள்ளலாம்.");
+        infoBox.setText("💡 பயன்பாட்டு குறிப்புகள்:\n\n• பின்னணியில் தொடர்ந்து இயங்கும் (Foreground Service): நீங்கள் யூடியூப் அல்லது வீடியோ பார்த்துக் கொண்டிருக்கும் போதும், வாட்ஸ்அப்பில் இருக்கும் போதும் ஆப் தானாகவே இயங்கும்.\n\n• துல்லியமான அக்செப்ட் பட்டன் கிளிக்: ஆர்டர் வந்தவுடன் சரியான Accept பட்டனை மட்டும் 0.1 நொடியில் துல்லியமாகக் கிளிக் செய்து ஏற்கும்.\n\n• திரையின் மேல் உள்ள மிதக்கும் சுவிட்சை (Floating Switch) தொட்டு எப்போது வேண்டுமானாலும் ஆன்/ஆஃப் செய்து கொள்ளலாம்.");
         infoBox.setTextColor(Color.parseColor("#94A3B8"));
         infoBox.setTextSize(13);
         infoBox.setPadding(25, 25, 25, 25);
@@ -151,5 +156,28 @@ public class MainActivity extends Activity {
         root.addView(infoBox);
 
         setContentView(scroll);
+    }
+
+    private void startOverlayServiceIfAllowed() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+            launchFloatingForegroundService();
+        }
+    }
+
+    private void launchFloatingForegroundService() {
+        Intent serviceIntent = new Intent(this, FloatingSwitchService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (masterSwitch != null && prefs != null) {
+            masterSwitch.setChecked(prefs.getBoolean("is_auto_accept_on", true));
+        }
     }
 }
