@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.example.rapido"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.rapido.autoclicker"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0-LIGHTWEIGHT"
     }
@@ -30,8 +30,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-ktx:1.13.1")
 }

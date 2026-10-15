@@ -58,9 +58,11 @@ class RapidoAutoClickService : AccessibilityService() {
 
         for (candidate in textCandidates) {
             val nodes = root.findAccessibilityNodeInfosByText(candidate)
-            for (node in nodes) {
-                if (clickByBoundsXY(node)) {
-                    return true
+            if (nodes != null) {
+                for (node in nodes) {
+                    if (clickByBoundsXY(node)) {
+                        return true
+                    }
                 }
             }
         }
@@ -79,28 +81,29 @@ class RapidoAutoClickService : AccessibilityService() {
 
         for (id in idCandidates) {
             val nodes = root.findAccessibilityNodeInfosByViewId(id)
-            for (node in nodes) {
-                if (clickByBoundsXY(node)) {
-                    return true
+            if (nodes != null) {
+                for (node in nodes) {
+                    if (clickByBoundsXY(node)) {
+                        return true
+                    }
                 }
             }
         }
 
         // Rupee Symbol ₹ detection - find Accept in active offer card
         val rupeeNodes = root.findAccessibilityNodeInfosByText("₹")
-        if (rupeeNodes.isNotEmpty()) {
+        if (rupeeNodes != null && rupeeNodes.isNotEmpty()) {
             for (rNode in rupeeNodes) {
-                // If the rupee node itself or its parent is the accept button
-                var parent = rNode.parent
+                var currentParent = rNode.parent
                 var depth = 0
-                while (parent != null && depth < 4) {
+                while (currentParent != null && depth < 4) {
                     val rect = Rect()
-                    parent.getBoundsInScreen(rect)
-                    // If this parent looks like a button with bounds
-                    if (parent.isClickable && rect.width() > 100) {
-                        return clickByBoundsXY(parent)
+                    currentParent.getBoundsInScreen(rect)
+                    if (currentParent.isClickable && rect.width() > 100) {
+                        return clickByBoundsXY(currentParent)
                     }
-                    parent = parent.parent
+                    val nextParent = currentParent.parent
+                    currentParent = nextParent
                     depth++
                 }
             }
@@ -138,11 +141,13 @@ class RapidoAutoClickService : AccessibilityService() {
 
         // 2. Parallel Node Accessibility Click
         var actionClicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        if (!actionClicked && node.parent != null) {
-            actionClicked = node.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        }
-        if (!actionClicked && node.parent?.parent != null) {
-            actionClicked = node.parent.parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        val p1 = node.parent
+        if (!actionClicked && p1 != null) {
+            actionClicked = p1.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            val p2 = p1.parent
+            if (!actionClicked && p2 != null) {
+                actionClicked = p2.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
         }
 
         return gestureDispatched || actionClicked
@@ -153,7 +158,6 @@ class RapidoAutoClickService : AccessibilityService() {
             val path = Path().apply {
                 moveTo(x, y)
             }
-            // 50 milliseconds responsive hardware touch tap at exact (X, Y) coordinates
             val stroke = GestureDescription.StrokeDescription(path, 0, 50)
             val gesture = GestureDescription.Builder().addStroke(stroke).build()
             return dispatchGesture(gesture, null, null)
@@ -167,7 +171,6 @@ class RapidoAutoClickService : AccessibilityService() {
                 moveTo(startX, startY)
                 lineTo(endX, endY)
             }
-            // 100 milliseconds fast swipe gesture for slider accept buttons
             val stroke = GestureDescription.StrokeDescription(path, 0, 100)
             val gesture = GestureDescription.Builder().addStroke(stroke).build()
             return dispatchGesture(gesture, null, null)

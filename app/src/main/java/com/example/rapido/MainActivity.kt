@@ -58,7 +58,7 @@ class MainActivity : Activity() {
             textSize = 17f
             setTextColor(Color.WHITE)
             isChecked = isAutoOn
-            setOnCheckedChangeListener { _, checked ->
+            setOnCheckedChangeListener { _: CompoundButton, checked: Boolean ->
                 isAutoOn = checked
                 prefs.edit().putBoolean("is_auto_accept_on", checked).apply()
             }
