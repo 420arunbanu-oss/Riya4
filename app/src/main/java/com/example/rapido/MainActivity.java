@@ -681,26 +681,24 @@ public class MainActivity extends Activity {
         if (!running) {
             boolean hasAcc = RapidoAutoClickService.isServiceRunning;
             if (!hasAcc) {
-                showToast("🔑 Please enable Accessibility Service first!");
+                showToast("🔑 Accessibility அனுமதி தேவை! ஆன் செய்யவும்.");
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                 return;
             }
             storage.edit().putBoolean("isRunning", true).apply();
             RapidoAutoClickService.isAutoAcceptOn = true;
-
-            // Start floating foreground service
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+            try {
                 Intent sIntent = new Intent(this, FloatingSwitchService.class);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(sIntent);
                 } else {
                     startService(sIntent);
                 }
-            }
-            showToast("🟢 Engine is ONLINE");
+            } catch (Exception ignored) {}
+            showToast("🟢 Auto Clicker ONLINE (பின்னணியில் தயாராக உள்ளது)");
         } else {
             stopAutoClicker();
-            showToast("🛑 Auto Clicker Stopped");
+            showToast("🛑 Auto Clicker நிறுத்தப்பட்டது");
         }
         syncUIState();
     }
@@ -758,7 +756,7 @@ public class MainActivity extends Activity {
                     }
 
                     boolean hasAcc = RapidoAutoClickService.isServiceRunning;
-                    boolean hasOvl = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(MainActivity.this);
+                    boolean hasOvl = true; // Floating overlay removed as requested
                     boolean hasBat = true;
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
