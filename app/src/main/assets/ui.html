@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: rgba(56,189,248,0.2); } body { user-select: auto; -webkit-user-select: auto; } input, select, textarea { user-select: text !important; -webkit-user-select: text !important; pointer-events: auto !important; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: rgba(56,189,248,0.2); } body { user-select: auto; -webkit-user-select: auto; } input, select, textarea { user-select: text !important; -webkit-user-select: text !important; pointer-events: auto !important; touch-action: manipulation !important; }
         body { background-color: #0d121f; color: #ffffff; padding: 12px; font-size: 13px; max-width: 450px; margin: 0 auto; overflow-y: auto !important; height: auto !important; }
         .card { background: #151d30; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 14px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
         .card-highlight { border: 1px solid rgba(56, 189, 248, 0.3); background: linear-gradient(145deg, #151d30, #0f172a); }
@@ -377,7 +377,6 @@
                 } catch(e) {}
             }, 300);
         }
-
         function openEmailDirect(toEmail) {
             var em = toEmail || "420arunbanu@gmail.com";
             var curEmail = "";
@@ -396,7 +395,6 @@
                 } catch(e) {}
             }, 300);
         }
-
         function doLogin() {
             var emailElem = document.getElementById("emailInput");
             var passElem = document.getElementById("passInput");
