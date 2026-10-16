@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: rgba(56,189,248,0.2); } body { -webkit-user-select: none; user-select: none; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: rgba(56,189,248,0.2); } body { user-select: auto; -webkit-user-select: auto; } input, select, textarea { user-select: text !important; -webkit-user-select: text !important; pointer-events: auto !important; }
         body { background-color: #0d121f; color: #ffffff; padding: 12px; font-size: 13px; max-width: 450px; margin: 0 auto; overflow-y: auto !important; height: auto !important; }
         .card { background: #151d30; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 14px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
         .card-highlight { border: 1px solid rgba(56, 189, 248, 0.3); background: linear-gradient(145deg, #151d30, #0f172a); }
@@ -53,7 +53,7 @@
         .btn-glow-purple { background: linear-gradient(135deg, #4c1d95, #2e1065); border: 1px solid #c084fc; color: #c084fc; padding: 10px; border-radius: 12px; font-weight: bold; font-size: 11px; width: 100%; cursor: pointer; }
         .btn-green { background: #10b981; color: #030712; border: none; padding: 10px 16px; font-weight: bold; border-radius: 12px; cursor: pointer; }
         .btn-red { background: #be123c; color: #ffffff; border: none; padding: 10px 16px; font-weight: bold; border-radius: 12px; cursor: pointer; }
-        .btn-whatsapp { background: linear-gradient(135deg, #25d366, #128c7e); color: #ffffff; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(37,211,102,0.3); }
+        .btn-email { background: linear-gradient(135deg, #0284c7, #2563eb); color: #ffffff; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(37,99,235,0.3); } .btn-whatsapp { background: linear-gradient(135deg, #25d366, #128c7e); color: #ffffff; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(37,211,102,0.3); }
         .quick-action-item { background: #0c1220; border: 1px solid rgba(255,255,255,0.05); border-radius: 14px; padding: 12px; cursor: pointer; }
         .checkbox-container { display: flex; align-items: center; margin: 8px 0; font-size: 13px; cursor: pointer; }
         .checkbox-container input { width: 18px; height: 18px; margin-right: 8px; accent-color: #10b981; }
@@ -85,7 +85,8 @@
             <div class="divider"><span class="divider-text">OR</span></div>
             <div style="text-align:center; color:#94a3b8; font-size:11px; margin-bottom:8px;">Don't have an account?</div>
             <button class="btn-glow-purple" style="padding:12px;" onclick="showRegisterPage()">➕ CREATE NEW ACCOUNT</button>
-            <button class="btn-whatsapp" style="margin-top:10px;" onclick="openWhatsAppDirect()">💬 CONTACT ADMIN VIA WHATSAPP</button>
+            <button class="btn-whatsapp" style="margin-top:10px;" onclick="openWhatsAppDirect()">💬 CONTACT ADMIN VIA WHATSAPP (+91 77082 71310)</button>
+            <button class="btn-email" style="margin-top:10px;" onclick="openEmailDirect('420arunbanu@gmail.com')">📧 CONTACT ADMIN VIA EMAIL (420arunbanu@gmail.com)</button>
         </div>
     </div>
 
@@ -104,6 +105,8 @@
             <select id="regVehicleInput"><option value="Auto">🛺 Auto</option><option value="Bike">🏍️ Bike</option><option value="Cab">🚗 Cab / Car</option></select>
             <div style="color:#fbbf24; font-size:11px; font-weight:bold; margin:12px 0;">🎁 1-Day Demo Account • Try the app first, then continue with a premium plan.</div>
             <div class="grid-2"><button class="btn-red" onclick="showLoginPage()">⬅️ BACK</button><button class="btn-green" onclick="doRegister()">SUBMIT ➔</button></div>
+            <button class="btn-whatsapp" style="margin-top:14px;" onclick="openWhatsAppDirect('Registration Support')">💬 CONTACT ADMIN ON WHATSAPP</button>
+            <button class="btn-email" style="margin-top:10px;" onclick="openEmailDirect('420arunbanu@gmail.com')">📧 EMAIL ADMIN (420arunbanu@gmail.com)</button>
         </div>
     </div>
 
@@ -357,7 +360,7 @@
             } catch(e) {}
         }
 
-                function openWhatsAppDirect() {
+                function openWhatsAppDirect(planName) {
             var em = "";
             var e1 = document.getElementById("emailInput");
             var e2 = document.getElementById("regEmailInput");
@@ -365,7 +368,33 @@
             if (e1 && e1.value.trim()) em = e1.value.trim();
             else if (e2 && e2.value.trim()) em = e2.value.trim();
             else if (e3 && e3.value.trim()) em = e3.value.trim();
-            sendToAutoJS("SUPPORT", { email: em });
+            var plan = planName || "Customer Support";
+            var msg = "வணக்கம் Admin, நான் Nura Auto Clicker ஆப்பில் இருந்து தொடர்பு கொள்கிறேன்.\nEmail: " + (em || "Driver") + "\nPlan: " + plan;
+            sendToAutoJS("CONTACT_WHATSAPP", { email: em, planName: plan });
+            setTimeout(function() {
+                try {
+                    window.location.href = "https://wa.me/917708271310?text=" + encodeURIComponent(msg);
+                } catch(e) {}
+            }, 300);
+        }
+
+        function openEmailDirect(toEmail) {
+            var em = toEmail || "420arunbanu@gmail.com";
+            var curEmail = "";
+            var e1 = document.getElementById("emailInput");
+            var e2 = document.getElementById("regEmailInput");
+            var e3 = document.getElementById("waitDriverEmail");
+            if (e1 && e1.value.trim()) curEmail = e1.value.trim();
+            else if (e2 && e2.value.trim()) curEmail = e2.value.trim();
+            else if (e3 && e3.value.trim()) curEmail = e3.value.trim();
+            var subject = "Nura Auto Clicker Driver Request - " + (curEmail || "Driver");
+            var body = "வணக்கம் Admin,\n\nநான் Nura Auto Clicker ஆப்பில் இருந்து தொடர்பு கொள்கிறேன்.\nDriver Email: " + curEmail + "\n";
+            sendToAutoJS("OPEN_EMAIL", { email: em, subject: subject, body: body });
+            setTimeout(function() {
+                try {
+                    window.location.href = "mailto:" + em + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+                } catch(e) {}
+            }, 300);
         }
 
         function doLogin() {
