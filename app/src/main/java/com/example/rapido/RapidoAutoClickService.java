@@ -384,7 +384,7 @@ public class RapidoAutoClickService extends AccessibilityService {
 
         // Method 2: Regex on full text
         if (bestPrice == 0 && fullText != null) {
-            Pattern p = Pattern.compile("(?:₹|rs\.?|inr)\s*([0-9]+)", Pattern.CASE_INSENSITIVE);
+            Pattern p = Pattern.compile("(?:₹|rs\\.?|inr)\\s*([0-9]+)", Pattern.CASE_INSENSITIVE);
             Matcher m = p.matcher(fullText);
             if (m.find()) {
                 try {
