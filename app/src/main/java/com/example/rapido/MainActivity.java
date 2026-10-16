@@ -14,6 +14,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.view.MotionEvent;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
@@ -21,8 +23,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -64,6 +68,23 @@ public class MainActivity extends Activity {
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.parseColor("#0D121F"));
+        webView.setFocusable(true);
+        webView.setFocusableInTouchMode(true);
+        webView.requestFocus(View.FOCUS_DOWN);
+        webView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                    case MotionEvent.ACTION_UP:
+                        if (!v.hasFocus()) {
+                            v.requestFocus();
+                        }
+                        break;
+                }
+                return false;
+            }
+        });
         setContentView(webView);
 
         WebSettings settings = webView.getSettings();
@@ -74,6 +95,11 @@ public class MainActivity extends Activity {
         settings.setDatabaseEnabled(true);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        settings.setSupportMultipleWindows(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
 
         // Chrome client handles javascript alerts and dialogs
         webView.setWebChromeClient(new WebChromeClient() {
@@ -89,13 +115,19 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                if (url != null && (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("intent://") || url.startsWith("whatsapp://"))) {
-                    try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
+                if (url != null) {
+                    if (url.startsWith("whatsapp://") || url.contains("api.whatsapp.com") || url.contains("wa.me")) {
+                        openWhatsAppFromUrl(url);
                         return true;
-                    } catch (Exception ignored) {}
+                    }
+                    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("intent://") || url.startsWith("upi://")) {
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                            return true;
+                        } catch (Exception ignored) {}
+                    }
                 }
                 return false;
             }
@@ -246,11 +278,9 @@ public class MainActivity extends Activity {
                         startActivity(intent);
                     }
                     break;
-
                 case "REQ_ACCESSIBILITY":
                     startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                     break;
-
                 case "REQ_OVERLAY":
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -259,7 +289,6 @@ public class MainActivity extends Activity {
                         startActivity(intent);
                     }
                     break;
-
                 case "REQ_BATTERY":
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         try {
@@ -272,7 +301,6 @@ public class MainActivity extends Activity {
                         }
                     }
                     break;
-
                 case "CHECK_PERMISSIONS":
                     boolean hasAcc = RapidoAutoClickService.isServiceRunning;
                     boolean hasOvl = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this);
@@ -288,7 +316,6 @@ public class MainActivity extends Activity {
                     }
                     syncUIState();
                     break;
-
                 case "COPY_UPI":
                     ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                     if (cm != null) {
@@ -296,11 +323,11 @@ public class MainActivity extends Activity {
                         showToast("📋 UPI ID Copied: " + UPI_VPA);
                     }
                     break;
-
                 case "CONTACT_WHATSAPP":
                 case "SUPPORT":
                     String planDetails = data.optString("planName", "Customer Support");
-                    String email = storage.getString("email", "Not Logged In");
+                    String passedEmail = data.optString("email", "");
+                    String email = !passedEmail.isEmpty() ? passedEmail : storage.getString("email", "Not Logged In");
                     String pass = storage.getString("user_password", "******");
                     int dIdx = storage.getInt("driver_index", 1);
                     String waMsg = "வணக்கம் Admin, நான் Nura Auto Clicker ஆப்பில் இருந்து தொடர்பு கொள்கிறேன்.\n" +
@@ -308,52 +335,73 @@ public class MainActivity extends Activity {
                             "Password: " + pass + "\n" +
                             "Driver No: #" + dIdx + "\n" +
                             "Selected Plan: " + planDetails;
-                    try {
-                        String waUrl = "https://api.whatsapp.com/send?phone=" + WHATSAPP_NUMBER + "&text=" + Uri.encode(waMsg);
-                        Intent waIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(waUrl));
-                        waIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(waIntent);
-                    } catch (Exception e) {
-                        showToast("❌ Could not open WhatsApp: " + e.getMessage());
-                    }
+                    openWhatsApp(waMsg);
                     break;
-
                 case "LOGIN":
                     processLogin(data.optString("email"), data.optString("pass"));
                     break;
-
                 case "REGISTER":
                     processRegister(data.optString("email"), data.optString("pass"), data.optString("vehicleType", "Auto"));
                     break;
-
                 case "CHECK_STATUS":
                     processCheckStatus();
                     break;
-
                 case "TOGGLE_START":
                     toggleAutoClicker();
                     break;
-
                 case "SAVE_FILTERS":
                     saveFilters(data);
                     break;
-
                 case "SHOW_TOAST":
                     showToast(obj.optString("data"));
                     break;
-
                 case "LOGOUT":
                     logoutAction();
                     break;
-
                 case "EXIT":
                     finishAffinity();
                     break;
+                default:
+                    break;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            showToast("Error: " + e.getMessage());
+        }
     }
 
-    private void showToast(final String msg) {
+    private void openWhatsAppFromUrl(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            openWhatsApp("வணக்கம் Admin, நான் Nura Auto Clicker ஆப்பில் இருந்து தொடர்பு கொள்கிறேன்.");
+        }
+    }
+
+    private void openWhatsApp(String message) {
+        try {
+            Uri uri = Uri.parse("whatsapp://send?phone=" + WHATSAPP_NUMBER + "&text=" + Uri.encode(message));
+            Intent waIntent = new Intent(Intent.ACTION_VIEW, uri);
+            waIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(waIntent);
+        } catch (Exception e1) {
+            try {
+                Uri webUri = Uri.parse("https://api.whatsapp.com/send?phone=" + WHATSAPP_NUMBER + "&text=" + Uri.encode(message));
+                Intent webIntent = new Intent(Intent.ACTION_VIEW, webUri);
+                webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(webIntent);
+            } catch (Exception e2) {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null) {
+                    cm.setPrimaryClip(ClipData.newPlainText("WhatsApp Number", WHATSAPP_NUMBER));
+                }
+                showToast("📱 WhatsApp: " + WHATSAPP_NUMBER + " (எண் காப்பி செய்யப்பட்டது)");
+            }
+        }
+    }
+
+    public void showToast(final String msg) {
         mainHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -373,41 +421,45 @@ public class MainActivity extends Activity {
             public void run() {
                 try {
                     String emailKey = getFirebaseEmailKey(email);
+                    // Check /users/{key} first, then root /{key}
                     String resStr = httpGet("/users/" + emailKey);
+                    if (resStr == null || resStr.equals("null")) {
+                        resStr = httpGet("/" + emailKey);
+                    }
                     if (resStr != null && !resStr.equals("null")) {
                         JSONObject userData = new JSONObject(resStr);
                         String dbPass = userData.optString("password", "").trim();
-                        if (!dbPass.equals(pass.trim())) {
+                        if (!dbPass.isEmpty() && !dbPass.equals(pass.trim())) {
                             showToast("❌ Login Error! Incorrect password.");
                             return;
                         }
                         String regAndroidId = userData.optString("androidId", "").trim();
                         String curAndroidId = getSafeAndroidId();
                         if (!regAndroidId.isEmpty() && !regAndroidId.equals(curAndroidId)) {
-                            showToast("❌ Login Blocked! This account is bound to another device.");
+                            showToast("❌ Login Blocked! Account bound to another device (" + regAndroidId + ")");
                             return;
                         }
                         String statusStr = userData.optString("status", "PENDING").toUpperCase().trim();
                         boolean isApproved = (statusStr.equals("APPROVED") || statusStr.equals("SUCCESS") || statusStr.equals("OK")) &&
                                 userData.optBoolean("approved", true);
-
                         long expiryDate = userData.optLong("expiryDate", 0);
                         if (expiryDate > 0 && System.currentTimeMillis() >= expiryDate) {
-                            showToast("🚫 Subscription Expired! Please contact Admin on WhatsApp.");
-                            storage.edit().putString("email", email).putString("user_password", pass).putBoolean("is_approved", false).apply();
+                            showToast("🚫 Subscription Expired! Contact Admin on WhatsApp.");
+                            storage.edit().putString("email", email.trim()).putString("user_password", pass.trim()).putBoolean("is_approved", false).apply();
                             syncUIState();
                             return;
                         }
 
-                        // Patch device ID
+                        // Patch device ID & lastLogin
                         JSONObject patchObj = new JSONObject();
                         patchObj.put("androidId", curAndroidId);
                         patchObj.put("lastLogin", System.currentTimeMillis());
                         httpPatch("/users/" + emailKey, patchObj.toString());
+                        httpPatch("/" + emailKey, patchObj.toString());
 
                         storage.edit()
-                                .putString("email", email)
-                                .putString("user_password", pass)
+                                .putString("email", email.trim())
+                                .putString("user_password", pass.trim())
                                 .putBoolean("is_approved", isApproved)
                                 .putString("userVehicleType", userData.optString("vehicleType", "Auto"))
                                 .putInt("driver_index", userData.optInt("driverIndex", 1))
@@ -416,9 +468,9 @@ public class MainActivity extends Activity {
                                 .putBoolean("allow_price_perm", userData.optBoolean("allowPrice", true))
                                 .apply();
 
-                        startRemoteKillSwitch(email);
+                        startRemoteKillSwitch(email.trim());
                         syncUIState();
-                        showToast("✅ Login successful!");
+                        showToast("✅ Login successful! Welcome Driver #" + userData.optInt("driverIndex", 1));
                     } else {
                         showToast("❌ Account not found! Please tap 'CREATE NEW ACCOUNT' to register your 1-Day Demo.");
                     }
@@ -440,17 +492,18 @@ public class MainActivity extends Activity {
             public void run() {
                 try {
                     String emailKey = getFirebaseEmailKey(email);
-                    String checkRes = httpGet("/users/" + emailKey);
-                    if (checkRes != null && !checkRes.equals("null")) {
-                        showToast("⚠️ Account Already Exists. Please login.");
+                    // Check if already registered
+                    String checkUsers = httpGet("/users/" + emailKey);
+                    String checkRoot = httpGet("/" + emailKey);
+                    if ((checkUsers != null && !checkUsers.equals("null")) || (checkRoot != null && !checkRoot.equals("null"))) {
+                        showToast("⚠️ Account already exists! Please Login.");
                         return;
                     }
                     int assignedIndex = (int) (Math.random() * 800) + 10;
                     long demoExpiry = System.currentTimeMillis() + (24 * 60 * 60 * 1000L);
-
                     JSONObject newUser = new JSONObject();
-                    newUser.put("email", email);
-                    newUser.put("password", pass);
+                    newUser.put("email", email.trim());
+                    newUser.put("password", pass.trim());
                     newUser.put("vehicleType", vehicleType);
                     newUser.put("status", "APPROVED");
                     newUser.put("approved", true);
@@ -464,11 +517,14 @@ public class MainActivity extends Activity {
                     newUser.put("driverIndex", assignedIndex);
                     newUser.put("registeredAt", System.currentTimeMillis());
 
-                    boolean putOk = httpPut("/users/" + emailKey, newUser.toString());
-                    if (putOk) {
+                    // Save to both /users/{emailKey} AND /{emailKey}
+                    boolean putUsers = httpPut("/users/" + emailKey, newUser.toString());
+                    httpPut("/" + emailKey, newUser.toString());
+
+                    if (putUsers) {
                         storage.edit()
-                                .putString("email", email)
-                                .putString("user_password", pass)
+                                .putString("email", email.trim())
+                                .putString("user_password", pass.trim())
                                 .putString("userVehicleType", vehicleType)
                                 .putBoolean("is_approved", true)
                                 .putBoolean("allow_area_perm", true)
@@ -477,8 +533,7 @@ public class MainActivity extends Activity {
                                 .putString("active_plan_name", "1-Day Demo")
                                 .putInt("driver_index", assignedIndex)
                                 .apply();
-
-                        startRemoteKillSwitch(email);
+                        startRemoteKillSwitch(email.trim());
                         syncUIState();
                         showToast("🎉 Demo Account Created! 1-Day Demo Active. Driver #" + assignedIndex);
                     } else {
@@ -501,6 +556,9 @@ public class MainActivity extends Activity {
                 try {
                     String emailKey = getFirebaseEmailKey(email);
                     String resStr = httpGet("/users/" + emailKey);
+                    if (resStr == null || resStr.equals("null")) {
+                        resStr = httpGet("/" + emailKey);
+                    }
                     if (resStr != null && !resStr.equals("null")) {
                         JSONObject d = new JSONObject(resStr);
                         String s = d.optString("status", "").toUpperCase().trim();
@@ -528,11 +586,14 @@ public class MainActivity extends Activity {
         killSwitchThread = new Thread(new Runnable() {
             @Override
             public void run() {
-                while (!Thread.currentThread().isInterrupted() && storage.getString("email", "").equals(email)) {
+                while (!Thread.currentThread().isInterrupted()) {
                     try {
-                        Thread.sleep(120000); // 2 minutes
+                        Thread.sleep(30000);
                         String emailKey = getFirebaseEmailKey(email);
                         String resStr = httpGet("/users/" + emailKey);
+                        if (resStr == null || resStr.equals("null")) {
+                            resStr = httpGet("/" + emailKey);
+                        }
                         if (resStr == null || resStr.equals("null")) {
                             mainHandler.post(new Runnable() {
                                 @Override
@@ -546,7 +607,6 @@ public class MainActivity extends Activity {
                         JSONObject data = new JSONObject(resStr);
                         long exp = data.optLong("expiryDate", 0);
                         if (exp > 0 && System.currentTimeMillis() >= exp) {
-                            storage.edit().putBoolean("is_approved", false).apply();
                             mainHandler.post(new Runnable() {
                                 @Override
                                 public void run() {
@@ -572,6 +632,9 @@ public class MainActivity extends Activity {
                 try {
                     String emailKey = getFirebaseEmailKey(email);
                     String resStr = httpGet("/users/" + emailKey);
+                    if (resStr == null || resStr.equals("null")) {
+                        resStr = httpGet("/" + emailKey);
+                    }
                     if (resStr != null && !resStr.equals("null")) {
                         JSONObject d = new JSONObject(resStr);
                         storage.edit()
@@ -709,6 +772,7 @@ public class MainActivity extends Activity {
 
                     String selJson = storage.getString("selectedAreasJson", "[]");
                     p.put("selectedAreas", new JSONArray(selJson));
+
                     String customJson = storage.getString("customAreasJson", "[]");
                     p.put("customAreas", new JSONArray(customJson));
 

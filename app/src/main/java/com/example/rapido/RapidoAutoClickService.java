@@ -9,33 +9,26 @@ import android.graphics.Rect;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
+
 import org.json.JSONArray;
+
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class RapidoAutoClickService extends AccessibilityService {
 
-    public static boolean isServiceRunning = false;
-    public static boolean isAutoAcceptOn = false;
+    public static volatile boolean isServiceRunning = false;
+    public static volatile boolean isAutoAcceptOn = false;
 
     private SharedPreferences storage;
-    private ExecutorService scanExecutor;
-    private AtomicBoolean isScanning = new AtomicBoolean(false);
-    private Handler mainHandler;
-    private long lastAcceptTime = 0L;
+    private long lastClickTimestamp = 0;
 
     @Override
     public void onServiceConnected() {
@@ -43,75 +36,69 @@ public class RapidoAutoClickService extends AccessibilityService {
         isServiceRunning = true;
         storage = getSharedPreferences("PREMIUM_LOGIN_DATA", Context.MODE_PRIVATE);
         isAutoAcceptOn = storage.getBoolean("isRunning", false);
-        scanExecutor = Executors.newSingleThreadExecutor();
-        mainHandler = new Handler(Looper.getMainLooper());
+        MainActivity.syncStaticUI();
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         isServiceRunning = false;
-        isAutoAcceptOn = false;
-        if (scanExecutor != null) {
-            scanExecutor.shutdownNow();
-        }
+        MainActivity.syncStaticUI();
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (!isAutoAcceptOn) return;
         if (event == null) return;
-        if (storage == null) {
-            storage = getSharedPreferences("PREMIUM_LOGIN_DATA", Context.MODE_PRIVATE);
-        }
 
-        // Fast state check
-        if (!isAutoAcceptOn && !storage.getBoolean("isRunning", false)) return;
+        // Anti-bounce check (min 1500ms between accepted orders)
+        long now = System.currentTimeMillis();
+        if (now - lastClickTimestamp < 1500) return;
 
-        CharSequence pkg = event.getPackageName();
-        if (pkg == null) return;
-        String pkgStr = pkg.toString().toLowerCase();
-
-        // Instant package filter: Only Rapido or Ola packages
-        if (!pkgStr.contains("rapido") && !pkgStr.contains("ola")) {
+        // Try primary root in active window
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root != null) {
+            handleRapidoOffer(root);
+            root.recycle();
             return;
         }
 
-        long now = System.currentTimeMillis();
-        if (now - lastAcceptTime < 600) return;
+        // Fallback: Event source node
+        AccessibilityNodeInfo source = event.getSource();
+        if (source != null) {
+            handleRapidoOffer(source);
+            source.recycle();
+            return;
+        }
 
-        // Prevent queue buildup: if scan is currently running in background, skip!
-        if (isScanning.get()) return;
-
-        // Run scanning strictly on background worker thread -> ZERO MAIN THREAD ANR!
-        scanExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                if (!isScanning.compareAndSet(false, true)) return;
-                try {
-                    processOrderScan();
-                } catch (Exception ignored) {
-                } finally {
-                    isScanning.set(false);
+        // Multi-window scan (floating overlay / HUD / PIP mode)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            List<AccessibilityWindowInfo> windows = getWindows();
+            if (windows != null) {
+                for (AccessibilityWindowInfo window : windows) {
+                    AccessibilityNodeInfo winRoot = window.getRoot();
+                    if (winRoot != null) {
+                        handleRapidoOffer(winRoot);
+                        winRoot.recycle();
+                        if (System.currentTimeMillis() - lastClickTimestamp < 1500) {
+                            break;
+                        }
+                    }
                 }
             }
-        });
+        }
     }
 
-    private void processOrderScan() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+    private void handleRapidoOffer(AccessibilityNodeInfo root) {
         if (root == null) return;
 
-        // AutoX.js Box 09 Logic:
-        // 1. Detect Ride Offer
-        boolean hasOrder = hasTextOrDesc(root, "Auto") ||
-                hasTextOrDesc(root, "Bike") ||
-                hasTextOrDesc(root, "Cab") ||
-                hasTextOrDesc(root, "OLA") ||
-                hasTextOrDesc(root, "Ola") ||
-                hasTextOrDesc(root, "ACCEPT IN") ||
-                hasTextOrDesc(root, "Accept");
+        // 1. Check if offer screen is present (Rupee symbol or Accept button)
+        boolean hasRupee = hasTextOrDesc(root, "₹") || hasTextOrDesc(root, "Rs");
+        AccessibilityNodeInfo acceptBtn = findAcceptButton(root);
 
-        if (!hasOrder) return;
+        if (!hasRupee && acceptBtn == null) {
+            return;
+        }
 
         // 2. Extract Price
         String priceText = findNodeTextWithSymbol(root, "₹");
@@ -121,96 +108,70 @@ public class RapidoAutoClickService extends AccessibilityService {
         String priceDisplayStr = "Rs. 0";
 
         if (!priceText.isEmpty()) {
-            Pattern multiPattern = Pattern.compile("₹?\s*(\d+)\s*\+\s*₹?\s*(\d+)");
-            Matcher mMulti = multiPattern.matcher(priceText);
-            if (mMulti.find()) {
-                basePrice = Integer.parseInt(mMulti.group(1));
-                tipPrice = Integer.parseInt(mMulti.group(2));
+            if (priceText.contains("+")) {
+                int plusIdx = priceText.indexOf("+");
+                basePrice = extractFirstNumber(priceText.substring(0, plusIdx));
+                tipPrice = extractFirstNumber(priceText.substring(plusIdx + 1));
                 totalPrice = basePrice + tipPrice;
                 priceDisplayStr = "Rs. " + basePrice + " + Rs. " + tipPrice;
             } else {
-                Pattern singlePattern = Pattern.compile("₹?\s*(\d+)");
-                Matcher mSingle = singlePattern.matcher(priceText);
-                if (mSingle.find()) {
-                    basePrice = Integer.parseInt(mSingle.group(1));
-                    totalPrice = basePrice;
-                    priceDisplayStr = "Rs. " + basePrice;
-                }
+                basePrice = extractFirstNumber(priceText);
+                totalPrice = basePrice;
+                priceDisplayStr = "Rs. " + basePrice;
             }
         }
 
+        // 3. Admin Permission Flags
+        boolean allowPrice = storage.getBoolean("allow_price_perm", true);
+        boolean allowArea = storage.getBoolean("allow_area_perm", true);
+
+        // 4. Price Filtering Logic
+        boolean usePrice = allowPrice && storage.getBoolean("usePriceFilter", false);
         int minPrice = storage.getInt("minPrice", 40);
         int maxPrice = storage.getInt("maxPrice", 10000);
-        boolean usePriceFilter = storage.getBoolean("usePriceFilter", false);
         boolean useSkipBelowMin = storage.getBoolean("useSkipBelowMin", false);
-        boolean allowPricePermission = storage.getBoolean("allow_price_perm", true);
-        boolean useAreaFilter = storage.getBoolean("useAreaFilter", false);
-        boolean allowAreaPermission = storage.getBoolean("allow_area_perm", true);
 
-        // 3. Skip Order Below Min Price (AutoX.js Logic)
-        if (useSkipBelowMin && allowPricePermission && basePrice > 0 && basePrice < minPrice) {
-            AccessibilityNodeInfo skipBtn = findSkipButton(root);
-            if (skipBtn != null) {
-                Rect b = new Rect();
-                skipBtn.getBoundsInScreen(b);
-                if (b.width() > 0) {
-                    clickXY(b.centerX(), b.centerY());
-                    skipBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    try { Thread.sleep(600); } catch (Exception ignored) {}
-                    return;
+        if (usePrice && totalPrice > 0) {
+            if (totalPrice < minPrice) {
+                if (useSkipBelowMin) {
+                    AccessibilityNodeInfo skipBtn = findSkipButton(root);
+                    if (skipBtn != null) {
+                        skipBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    }
                 }
+                return;
+            }
+            if (totalPrice > maxPrice) {
+                return;
             }
         }
 
-        // 4. Price Condition
-        boolean priceConditionMet = true;
-        if (usePriceFilter && allowPricePermission) {
-            priceConditionMet = (basePrice >= minPrice && basePrice <= maxPrice);
-        }
-        if (!priceConditionMet) return;
-
-        // 5. Area Condition (AutoX.js Logic)
-        boolean areaConditionMet = true;
-        String matchedAreaName = "General";
+        // 5. Area Filtering Logic
+        boolean useArea = allowArea && storage.getBoolean("useAreaFilter", false);
+        List<String> selectedAreas = loadSelectedAreas();
+        String matchedAreaName = "General Ride";
         String foundDropKm = "--";
 
-        if (useAreaFilter && allowAreaPermission) {
-            List<String> areasToCheck = loadSelectedAreas();
-            if (!areasToCheck.isEmpty()) {
-                DropAreaResult areaRes = checkDropArea(root, areasToCheck);
-                areaConditionMet = areaRes.matched;
-                matchedAreaName = areaRes.areaName;
-                foundDropKm = areaRes.dropKm;
+        if (useArea && !selectedAreas.isEmpty()) {
+            DropAreaResult areaRes = checkDropArea(root, selectedAreas);
+            if (!areaRes.matched) {
+                return;
             }
+            matchedAreaName = areaRes.areaName;
+            foundDropKm = areaRes.dropKm;
+        } else {
+            DropAreaResult areaRes = checkDropArea(root, new ArrayList<String>());
+            foundDropKm = areaRes.dropKm;
         }
 
-        if (!areaConditionMet) return;
-
-        // 6. Find and Click Accept Button
-        AccessibilityNodeInfo acceptBtn = findAcceptButton(root);
+        // 6. Trigger Order Acceptance
         if (acceptBtn != null) {
-            Rect b = new Rect();
-            acceptBtn.getBoundsInScreen(b);
-            if (b.width() > 0 && b.height() > 0) {
-                // Hardware 1ms touch gesture
-                clickXY(b.centerX(), b.centerY());
-                // Accessibility action
-                acceptBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-
-                // If wide slider bar, swipe across
-                CharSequence txt = acceptBtn.getText();
-                CharSequence desc = acceptBtn.getContentDescription();
-                String full = ((txt != null ? txt.toString() : "") + " " + (desc != null ? desc.toString() : "")).toLowerCase();
-                if (full.contains("slide") || full.contains("swipe") || b.width() > 380) {
-                    swipeXY(b.left + 50, b.centerY(), b.right - 50, b.centerY());
-                }
-
-                lastAcceptTime = System.currentTimeMillis();
-
-                // Sound / Beep Notification
+            boolean accepted = triggerAccept(acceptBtn);
+            if (accepted) {
+                lastClickTimestamp = System.currentTimeMillis();
                 playBeepOrVibrate();
 
-                // Update Stats in Storage
+                // Save earnings and stats
                 int oldEarn = storage.getInt("today_earnings", 0);
                 int oldCount = storage.getInt("today_orders_count", 0);
                 Calendar cal = Calendar.getInstance();
@@ -232,6 +193,60 @@ public class RapidoAutoClickService extends AccessibilityService {
                 try { Thread.sleep(400); } catch (Exception ignored) {}
             }
         }
+    }
+
+    private boolean triggerAccept(AccessibilityNodeInfo btn) {
+        if (btn == null) return false;
+
+        // Method 1: Standard accessibility click
+        boolean clicked = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        if (clicked) return true;
+
+        // Method 2: Parent click
+        AccessibilityNodeInfo p = btn.getParent();
+        if (p != null) {
+            if (p.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                return true;
+            }
+        }
+
+        // Method 3: Coordinate click or slider swipe
+        Rect bounds = new Rect();
+        btn.getBoundsInScreen(bounds);
+        if (bounds.width() > 0 && bounds.height() > 0) {
+            // Check if slider (wide button)
+            if (bounds.width() > bounds.height() * 2) {
+                float startX = bounds.left + (bounds.height() / 2f);
+                float centerY = bounds.centerY();
+                float endX = bounds.right - 20;
+                boolean swipeOk = swipeXY(startX, centerY, endX, centerY);
+                if (swipeOk) return true;
+            }
+            return clickXY(bounds.centerX(), bounds.centerY());
+        }
+
+        return false;
+    }
+
+    private int extractFirstNumber(String s) {
+        if (s == null) return 0;
+        StringBuilder num = new StringBuilder();
+        boolean foundDigit = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isDigit(c)) {
+                num.append(c);
+                foundDigit = true;
+            } else if (foundDigit) {
+                break;
+            }
+        }
+        if (num.length() > 0) {
+            try {
+                return Integer.parseInt(num.toString());
+            } catch (Exception ignored) {}
+        }
+        return 0;
     }
 
     private boolean hasTextOrDesc(AccessibilityNodeInfo root, String query) {
@@ -300,7 +315,7 @@ public class RapidoAutoClickService extends AccessibilityService {
     }
 
     private List<String> loadSelectedAreas() {
-        List<String> list = new ArrayList<>();
+        List<String> list = new ArrayList<String>();
         try {
             String json = storage.getString("selectedAreasJson", "[]");
             JSONArray arr = new JSONArray(json);
@@ -330,11 +345,17 @@ public class RapidoAutoClickService extends AccessibilityService {
         collectAllText(root, fullText);
         String lower = fullText.toString().toLowerCase();
 
-        // Match distance
-        Pattern distPattern = Pattern.compile("(\d+(\.\d+)?)\s*(km|m)", Pattern.CASE_INSENSITIVE);
-        Matcher mDist = distPattern.matcher(fullText);
-        if (mDist.find()) {
-            dropKm = mDist.group(0);
+        // Safe substring extraction for distance
+        int kmIdx = lower.indexOf("km");
+        if (kmIdx != -1) {
+            int start = Math.max(0, kmIdx - 5);
+            dropKm = fullText.substring(start, kmIdx + 2).trim();
+        } else {
+            int mIdx = lower.indexOf(" m");
+            if (mIdx != -1) {
+                int start = Math.max(0, mIdx - 5);
+                dropKm = fullText.substring(start, mIdx + 2).trim();
+            }
         }
 
         for (String a : areasToCheck) {

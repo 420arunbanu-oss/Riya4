@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: rgba(56,189,248,0.2); } body { -webkit-user-select: none; user-select: none; }
         body { background-color: #0d121f; color: #ffffff; padding: 12px; font-size: 13px; max-width: 450px; margin: 0 auto; overflow-y: auto !important; height: auto !important; }
         .card { background: #151d30; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 14px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
         .card-highlight { border: 1px solid rgba(56, 189, 248, 0.3); background: linear-gradient(145deg, #151d30, #0f172a); }
@@ -57,7 +57,7 @@
         .quick-action-item { background: #0c1220; border: 1px solid rgba(255,255,255,0.05); border-radius: 14px; padding: 12px; cursor: pointer; }
         .checkbox-container { display: flex; align-items: center; margin: 8px 0; font-size: 13px; cursor: pointer; }
         .checkbox-container input { width: 18px; height: 18px; margin-right: 8px; accent-color: #10b981; }
-        input[type="text"], input[type="password"], input[type="number"], select { width: 100%; background: #030712; border: 1px solid #1e293b; color: #fff; padding: 12px; border-radius: 12px; outline: none; font-size: 13px; margin-top: 4px; }
+        input[type="text"], input[type="password"], input[type="number"], select { width: 100%; background: #030712; border: 1px solid #1e293b; color: #fff; padding: 12px; border-radius: 12px; outline: none; font-size: 13px; margin-top: 4px; -webkit-user-select: text !important; user-select: text !important; cursor: text !important; pointer-events: auto !important; touch-action: manipulation; } button, .btn-green, .btn-red, .btn-glow-blue, .btn-glow-purple, .btn-whatsapp, .quick-action-item, .start-btn-container, .perm-btn { touch-action: manipulation; cursor: pointer; }
         .bottom-nav { background: #10172a; border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 20px; padding: 10px; display: flex; justify-content: space-around; margin-top: 10px; }
         .nav-item { text-align: center; color: #64748b; font-size: 10px; cursor: pointer; }
         .nav-item.active { color: #38bdf8; font-weight: bold; }
@@ -357,13 +357,15 @@
             } catch(e) {}
         }
 
-        function openWhatsAppDirect() {
-            sendToAutoJS("SUPPORT", {});
-            try {
-                var email = document.getElementById("emailInput") ? document.getElementById("emailInput").value.trim() : "";
-                var waUrl = "https://wa.me/917708271310?text=" + encodeURIComponent("வணக்கம் Admin, நான் Nura Auto Clicker ஆப்பில் இருந்து தொடர்பு கொள்கிறேன். உதவி தேவை.\nEmail: " + (email || "Not Logged In"));
-                window.open(waUrl, "_blank");
-            } catch(e) {}
+                function openWhatsAppDirect() {
+            var em = "";
+            var e1 = document.getElementById("emailInput");
+            var e2 = document.getElementById("regEmailInput");
+            var e3 = document.getElementById("waitDriverEmail");
+            if (e1 && e1.value.trim()) em = e1.value.trim();
+            else if (e2 && e2.value.trim()) em = e2.value.trim();
+            else if (e3 && e3.value.trim()) em = e3.value.trim();
+            sendToAutoJS("SUPPORT", { email: em });
         }
 
         function doLogin() {
@@ -378,13 +380,15 @@
             sendToAutoJS("LOGIN", { email: email, pass: pass });
         }
 
+                var isRegisteringView = false;
         function showRegisterPage() {
-            document.getElementById("loginView").classList.add("hidden");
+            isRegisteringView = true;
+            hideAllViews();
             document.getElementById("registerView").classList.remove("hidden");
         }
-
         function showLoginPage() {
-            document.getElementById("registerView").classList.add("hidden");
+            isRegisteringView = false;
+            hideAllViews();
             document.getElementById("loginView").classList.remove("hidden");
         }
 
@@ -579,7 +583,9 @@
                 if (ut) ut.innerText = data.updateTxt || "UPDATE";
             }
             if (data.view === "LOGIN") {
-                hideAllViews(); document.getElementById("loginView").classList.remove("hidden");
+                if (!isRegisteringView) {
+                    hideAllViews(); document.getElementById("loginView").classList.remove("hidden");
+                }
             } else if (data.view === "REGISTER") {
                 hideAllViews(); document.getElementById("registerView").classList.remove("hidden");
             } else if (data.view === "WAIT") {
