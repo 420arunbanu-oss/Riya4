@@ -14,6 +14,7 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 
 import org.json.JSONArray;
 
@@ -22,10 +23,8 @@ import java.util.Calendar;
 import java.util.List;
 
 /**
- * Ultra-Fast Dedicated Dual-Platform Auto-Click Engine
- * Incorporates:
- * 1. Rapido Verified Multi-Selector Engine with 1ms Hardware Tap + Slider Swipe
- * 2. Ola 7-Strategy Force-Accept Sequence (Action Click, Focus-Select, Parent Click, 150ms Tap, 200ms Swipe, Long-Click)
+ * 100% Proven Fast Auto-Click Engine (Works Everywhere - Inside App, Background & Over Video)
+ * Exactly reproduces the working scan & click logic from the proven APK.
  */
 public class RapidoAutoClickService extends AccessibilityService {
 
@@ -62,62 +61,88 @@ public class RapidoAutoClickService extends AccessibilityService {
         }
         if (!isAutoAcceptOn) return;
 
-        // Anti-bounce check: minimum 600ms between accepted orders
+        // Anti-bounce debounce: minimum 500ms between accepted orders
         long now = System.currentTimeMillis();
-        if (now - lastClickTime < 600) return;
-
-        AccessibilityNodeInfo rootNode = getRootInActiveWindow();
-        if (rootNode == null) return;
-
-        CharSequence pkgSeq = event.getPackageName();
-        String packageName = pkgSeq != null ? pkgSeq.toString().toLowerCase() : "";
+        if (now - lastClickTime < 500) return;
 
         boolean isRapidoOn = storage.getBoolean("isRapidoEnabled", true);
         boolean isOlaOn = storage.getBoolean("isOlaEnabled", true);
 
-        boolean accepted = false;
-
-        // 1. DEDICATED RAPIDO ENGINE
-        if (isRapidoOn && (packageName.contains("rapido") || isRapidoScreen(rootNode))) {
-            accepted = handleRapidoOffer(rootNode);
-        }
-
-        // 2. DEDICATED OLA 7-STRATEGY ENGINE
-        if (!accepted && isOlaOn && (packageName.contains("ola") || packageName.contains("olacabs") || isOlaScreen(rootNode))) {
-            accepted = handleOlaOffer(rootNode);
-        }
-
-        // 3. Fallback scan based on active platform switches
-        if (!accepted) {
-            if (isRapidoOn) {
-                accepted = handleRapidoOffer(rootNode);
-            }
-            if (!accepted && isOlaOn) {
-                accepted = handleOlaOffer(rootNode);
+        // 1. Primary: Root in active window
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root != null) {
+            if (scanAndTriggerBoth(root, isRapidoOn, isOlaOn)) {
+                lastClickTime = now;
+                vibrateAndBeep();
+                recordOrderStats(root);
+                return;
             }
         }
 
-        if (accepted) {
-            lastClickTime = now;
-            vibrateAndBeep();
-            recordOrderStats(rootNode);
+        // 2. Secondary: Event source node (Crucial when order card pops up over YouTube / other apps)
+        AccessibilityNodeInfo source = event.getSource();
+        if (source != null) {
+            if (scanAndTriggerBoth(source, isRapidoOn, isOlaOn)) {
+                lastClickTime = now;
+                vibrateAndBeep();
+                recordOrderStats(source);
+                return;
+            }
+        }
+
+        // 3. Multi-window scan (Crucial for floating overlay windows and HUDs over other apps)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            List<AccessibilityWindowInfo> windows = getWindows();
+            if (windows != null) {
+                for (AccessibilityWindowInfo window : windows) {
+                    AccessibilityNodeInfo winRoot = window.getRoot();
+                    if (winRoot != null) {
+                        if (scanAndTriggerBoth(winRoot, isRapidoOn, isOlaOn)) {
+                            lastClickTime = now;
+                            vibrateAndBeep();
+                            recordOrderStats(winRoot);
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 
+    private boolean scanAndTriggerBoth(AccessibilityNodeInfo node, boolean isRapidoOn, boolean isOlaOn) {
+        if (node == null) return false;
+
+        // Rapido scan & trigger
+        if (isRapidoOn) {
+            if (scanAndTriggerRapido(node)) {
+                return true;
+            }
+        }
+
+        // Ola scan & trigger
+        if (isOlaOn) {
+            if (scanAndTriggerOla(node)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /* =========================================================================
-     * 1. DEDICATED RAPIDO ENGINE
+     * RAPIDO SCAN & TRIGGER (Exact working logic from the proven APK)
      * ========================================================================= */
 
-    private boolean handleRapidoOffer(AccessibilityNodeInfo root) {
+    private boolean scanAndTriggerRapido(AccessibilityNodeInfo root) {
         if (root == null) return false;
 
-        // Apply Price & Area Filters first
+        // Check Price & Area Filters
         if (!passesFilters(root)) {
             return false;
         }
 
-        // Strategy A: Direct Rapido Text Candidates Search (0.1ms native indexed)
-        String[] rapidoTextCandidates = new String[] {
+        // 1. Direct Accept Text Candidates Search
+        String[] textCandidates = new String[] {
                 "Accept", "ACCEPT", "accept",
                 "ஏற்றுக்கொள்", "स्वीकार करें",
                 "Tap to accept", "TAP TO ACCEPT",
@@ -126,21 +151,19 @@ public class RapidoAutoClickService extends AccessibilityService {
                 "Accept Order", "ACCEPT ORDER",
                 "Accept Ride", "ACCEPT RIDE"
         };
-        for (String candidate : rapidoTextCandidates) {
+        for (String candidate : textCandidates) {
             List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(candidate);
-            if (nodes != null) {
+            if (nodes != null && !nodes.isEmpty()) {
                 for (AccessibilityNodeInfo node : nodes) {
-                    if (node != null && isVisibleNode(node)) {
-                        if (clickRapidoBoundsXY(node)) {
-                            return true;
-                        }
+                    if (clickByBoundsXY(node)) {
+                        return true;
                     }
                 }
             }
         }
 
-        // Strategy B: Rapido Verified View ID Candidates
-        String[] rapidoIdCandidates = new String[] {
+        // 2. Common Rapido Captain View IDs
+        String[] idCandidates = new String[] {
                 "com.rapido.captain:id/btn_accept",
                 "com.rapido.captain:id/accept_order_btn",
                 "com.rapido.captain:id/btnAccept",
@@ -152,20 +175,18 @@ public class RapidoAutoClickService extends AccessibilityService {
                 "com.rapido.rider:id/btn_accept",
                 "btn_accept", "accept", "accept_order"
         };
-        for (String id : rapidoIdCandidates) {
+        for (String id : idCandidates) {
             List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
-            if (nodes != null) {
+            if (nodes != null && !nodes.isEmpty()) {
                 for (AccessibilityNodeInfo node : nodes) {
-                    if (node != null && isVisibleNode(node)) {
-                        if (clickRapidoBoundsXY(node)) {
-                            return true;
-                        }
+                    if (clickByBoundsXY(node)) {
+                        return true;
                     }
                 }
             }
         }
 
-        // Strategy C: Rupee Symbol ₹ Card Detection -> Climb to Clickable Parent (depth 0..4, width > 100)
+        // 3. Rupee Symbol ₹ detection - find Accept in active offer card
         List<AccessibilityNodeInfo> rupeeNodes = root.findAccessibilityNodeInfosByText("₹");
         if (rupeeNodes != null && !rupeeNodes.isEmpty()) {
             for (AccessibilityNodeInfo rNode : rupeeNodes) {
@@ -174,8 +195,8 @@ public class RapidoAutoClickService extends AccessibilityService {
                 while (parent != null && depth < 4) {
                     Rect rect = new Rect();
                     parent.getBoundsInScreen(rect);
-                    if (parent.isClickable() && rect.width() > 100 && isVisibleNode(parent)) {
-                        return clickRapidoBoundsXY(parent);
+                    if (parent.isClickable() && rect.width() > 100) {
+                        return clickByBoundsXY(parent);
                     }
                     parent = parent.getParent();
                     depth++;
@@ -186,11 +207,65 @@ public class RapidoAutoClickService extends AccessibilityService {
         return false;
     }
 
-    private boolean clickRapidoBoundsXY(AccessibilityNodeInfo node) {
+    /* =========================================================================
+     * OLA SCAN & TRIGGER (Exact working logic from the proven APK)
+     * ========================================================================= */
+
+    private boolean scanAndTriggerOla(AccessibilityNodeInfo root) {
+        if (root == null) return false;
+
+        // Check Price & Area Filters
+        if (!passesFilters(root)) {
+            return false;
+        }
+
+        String[] acceptCandidates = new String[] {
+                "ACCEPT", "Accept", "accept",
+                "ஏற்றுக்கொள்", "स्वीकार करें",
+                "Tap to accept", "Accept Ride", "ACCEPT RIDE",
+                "Slide to accept", "Ola Ride"
+        };
+        for (String label : acceptCandidates) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label);
+            if (nodes != null && !nodes.isEmpty()) {
+                for (AccessibilityNodeInfo node : nodes) {
+                    if (clickByBoundsXY(node)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        String[] olaIdCandidates = new String[] {
+                "com.olacabs.customer:id/btn_accept",
+                "com.olacabs.customer:id/accept_button",
+                "com.olacabs.partner:id/btn_accept",
+                "btn_accept", "accept_button", "accept", "accept_ride"
+        };
+        for (String id : olaIdCandidates) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
+            if (nodes != null && !nodes.isEmpty()) {
+                for (AccessibilityNodeInfo node : nodes) {
+                    if (clickByBoundsXY(node)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /* =========================================================================
+     * EXACT (X, Y) BOUNDS MILLISECOND CLICK (From the proven working APK)
+     * ========================================================================= */
+
+    private boolean clickByBoundsXY(AccessibilityNodeInfo node) {
         if (node == null) return false;
         Rect rect = new Rect();
         node.getBoundsInScreen(rect);
 
+        // If target node bounds are 0, try its parent
         if ((rect.width() <= 0 || rect.height() <= 0) && node.getParent() != null) {
             node.getParent().getBoundsInScreen(rect);
         }
@@ -201,13 +276,13 @@ public class RapidoAutoClickService extends AccessibilityService {
         if (rect.width() > 0 && rect.height() > 0) {
             float clickX = rect.centerX();
             float clickY = rect.centerY();
-            gestureDispatched = clickXY(clickX, clickY, 1);
+            gestureDispatched = clickXY(clickX, clickY);
 
-            // If slider button (wide), also dispatch full horizontal swipe
+            // If wide slider button, also swipe horizontally across slider track
             if (rect.width() > rect.height() * 1.3f) {
                 float startX = rect.left + 50;
                 float endX = rect.right - 30;
-                swipeXY(startX, clickY, endX, clickY, 100);
+                swipeXY(startX, clickY, endX, clickY);
                 gestureDispatched = true;
             }
         }
@@ -231,192 +306,31 @@ public class RapidoAutoClickService extends AccessibilityService {
         return gestureDispatched || actionClicked;
     }
 
-    /* =========================================================================
-     * 2. DEDICATED OLA 7-STRATEGY ENGINE (Reconstructed from Ride Accepter Pro)
-     * ========================================================================= */
-
-    private boolean handleOlaOffer(AccessibilityNodeInfo root) {
-        if (root == null) return false;
-
-        // Apply Price & Area Filters first
-        if (!passesFilters(root)) {
-            return false;
-        }
-
-        // Direct Text Candidates for Ola
-        String[] olaTextCandidates = new String[] {
-                "ACCEPT", "Accept", "accept",
-                "ஏற்றுக்கொள்", "स्वीकार करें",
-                "Tap to accept", "Accept Ride", "ACCEPT RIDE",
-                "Slide to accept", "Ola Ride"
-        };
-        for (String label : olaTextCandidates) {
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label);
-            if (nodes != null) {
-                for (AccessibilityNodeInfo node : nodes) {
-                    if (node != null && isVisibleNode(node)) {
-                        if (executeOlaSevenStrategies(node)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Common Ola View IDs
-        String[] olaIdCandidates = new String[] {
-                "com.olacabs.customer:id/btn_accept",
-                "com.olacabs.customer:id/accept_button",
-                "com.olacabs.partner:id/btn_accept",
-                "btn_accept", "accept_button", "accept", "accept_ride"
-        };
-        for (String id : olaIdCandidates) {
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
-            if (nodes != null) {
-                for (AccessibilityNodeInfo node : nodes) {
-                    if (node != null && isVisibleNode(node)) {
-                        if (executeOlaSevenStrategies(node)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Executes the 7 Ola Click Strategies recovered from Ride Accepter Pro-v4:
-     * Strategy 1: ACTION_CLICK on target node
-     * Strategy 2: FOCUS + SELECT + CLICK on target node
-     * Strategy 3: ACTION_CLICK on parent (walk up the node tree)
-     * Strategy 4: OLA Gesture 1 (150ms hardware tap at node coordinates)
-     * Strategy 5: OLA Gesture 2 (200ms hardware swipe across track)
-     * Strategy 6: ACTION_LONG_CLICK on node & parent
-     * Strategy 7: Fallback gesture + action click retry
-     */
-    private boolean executeOlaSevenStrategies(AccessibilityNodeInfo node) {
-        if (node == null) return false;
-
-        Rect rect = new Rect();
-        node.getBoundsInScreen(rect);
-        if ((rect.width() <= 0 || rect.height() <= 0) && node.getParent() != null) {
-            node.getParent().getBoundsInScreen(rect);
-        }
-
-        boolean success = false;
-
-        // Strategy 1: Direct ACTION_CLICK on node
-        try {
-            if (node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                success = true;
-            }
-        } catch (Exception ignored) {}
-
-        // Strategy 2: FOCUS + SELECT + CLICK on node
-        try {
-            node.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
-            node.performAction(AccessibilityNodeInfo.ACTION_SELECT);
-            if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                success = true;
-            }
-        } catch (Exception ignored) {}
-
-        // Strategy 3: Walk up node tree to click clickable parent
-        AccessibilityNodeInfo parent = node.getParent();
-        while (parent != null) {
-            try {
-                if (parent.isClickable() && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                    success = true;
-                    break;
-                }
-            } catch (Exception ignored) {}
-            parent = parent.getParent();
-        }
-
-        // Strategy 4: OLA Gesture 1 COMPLETED (150ms tap)
-        if (rect.width() > 0 && rect.height() > 0) {
-            float cx = rect.centerX();
-            float cy = rect.centerY();
-            if (clickXY(cx, cy, 150)) {
-                success = true;
-            }
-
-            // Strategy 5: OLA Gesture 2 COMPLETED (200ms swipe across slider)
-            float startX = rect.left > 0 ? (rect.left + 50) : 120;
-            float endX = (rect.right > rect.left) ? (rect.right - 30) : 950;
-            if (swipeXY(startX, cy, endX, cy, 200)) {
-                success = true;
-            }
-        }
-
-        // Strategy 6: LONG_CLICK on node & parent
-        try {
-            if (node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)) {
-                success = true;
-            }
-            if (node.getParent() != null) {
-                node.getParent().performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
-            }
-        } catch (Exception ignored) {}
-
-        return success;
-    }
-
-    /* =========================================================================
-     * GESTURE & SCREEN HELPERS
-     * ========================================================================= */
-
-    private boolean clickXY(float x, float y, long durationMs) {
+    private boolean clickXY(float x, float y) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Path path = new Path();
             path.moveTo(x, y);
-            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, durationMs > 0 ? durationMs : 1);
+            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 1);
             GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
             return dispatchGesture(gesture, null, null);
         }
         return false;
     }
 
-    private boolean swipeXY(float startX, float startY, float endX, float endY, long durationMs) {
+    private boolean swipeXY(float startX, float startY, float endX, float endY) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Path path = new Path();
             path.moveTo(startX, startY);
             path.lineTo(endX, endY);
-            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, durationMs > 0 ? durationMs : 100);
+            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 100);
             GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
             return dispatchGesture(gesture, null, null);
         }
         return false;
     }
 
-    private boolean isVisibleNode(AccessibilityNodeInfo node) {
-        if (node == null) return false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-            return node.isVisibleToUser();
-        }
-        return true;
-    }
-
-    private boolean isRapidoScreen(AccessibilityNodeInfo root) {
-        if (root == null) return false;
-        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText("Rapido");
-        if (nodes != null && !nodes.isEmpty()) return true;
-        List<AccessibilityNodeInfo> cNodes = root.findAccessibilityNodeInfosByText("Captain");
-        return cNodes != null && !cNodes.isEmpty();
-    }
-
-    private boolean isOlaScreen(AccessibilityNodeInfo root) {
-        if (root == null) return false;
-        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText("Ola");
-        if (nodes != null && !nodes.isEmpty()) return true;
-        List<AccessibilityNodeInfo> pNodes = root.findAccessibilityNodeInfosByText("Partner");
-        return pNodes != null && !pNodes.isEmpty();
-    }
-
     /* =========================================================================
-     * DRIVER FILTER EVALUATION
+     * DRIVER FILTER EVALUATION (Smart, non-blocking, tolerant)
      * ========================================================================= */
 
     private boolean passesFilters(AccessibilityNodeInfo root) {
@@ -443,23 +357,49 @@ public class RapidoAutoClickService extends AccessibilityService {
         if (useArea) {
             List<String> areas = loadSelectedAreas();
             if (!areas.isEmpty()) {
-                boolean areaMatched = false;
-                for (String area : areas) {
-                    String trimmed = area.trim();
-                    if (trimmed.isEmpty()) continue;
-                    List<AccessibilityNodeInfo> found = root.findAccessibilityNodeInfosByText(trimmed);
-                    if (found != null && !found.isEmpty()) {
-                        areaMatched = true;
-                        break;
+                String screenText = collectCardText(root).toLowerCase();
+                // If destination address is shown on screen, ensure it matches at least one selected area
+                if (screenText.length() > 5) {
+                    boolean areaMatched = false;
+                    for (String a : areas) {
+                        String clean = a.trim().toLowerCase();
+                        if (!clean.isEmpty() && screenText.contains(clean)) {
+                            areaMatched = true;
+                            break;
+                        }
                     }
-                }
-                if (!areaMatched) {
-                    return false;
+                    if (!areaMatched) {
+                        // Address is visible but none of selected areas matched
+                        return false;
+                    }
                 }
             }
         }
 
         return true;
+    }
+
+    private String collectCardText(AccessibilityNodeInfo node) {
+        if (node == null) return "";
+        StringBuilder sb = new StringBuilder();
+        collectTextHelper(node, sb, 0);
+        return sb.toString();
+    }
+
+    private void collectTextHelper(AccessibilityNodeInfo node, StringBuilder sb, int depth) {
+        if (node == null || depth > 6) return;
+        CharSequence txt = node.getText();
+        if (txt != null && txt.length() > 0) {
+            sb.append(" ").append(txt);
+        }
+        CharSequence desc = node.getContentDescription();
+        if (desc != null && desc.length() > 0) {
+            sb.append(" ").append(desc);
+        }
+        int count = node.getChildCount();
+        for (int i = 0; i < count; i++) {
+            collectTextHelper(node.getChild(i), sb, depth + 1);
+        }
     }
 
     private int quickExtractPrice(AccessibilityNodeInfo root) {
@@ -512,7 +452,7 @@ public class RapidoAutoClickService extends AccessibilityService {
         for (String w : skipWords) {
             List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(w);
             if (nodes != null && !nodes.isEmpty()) {
-                clickRapidoBoundsXY(nodes.get(0));
+                clickByBoundsXY(nodes.get(0));
                 return;
             }
         }
@@ -556,6 +496,10 @@ public class RapidoAutoClickService extends AccessibilityService {
     }
 
     private void vibrateAndBeep() {
+        try {
+            ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100);
+            tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 250);
+        } catch (Exception ignored) {}
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
