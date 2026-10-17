@@ -636,33 +636,26 @@ public class MainActivity extends Activity {
             public void run() {
                 while (!Thread.currentThread().isInterrupted()) {
                     try {
-                        Thread.sleep(30000);
+                        Thread.sleep(60000); // Check once per minute in background thread
                         String emailKey = getFirebaseEmailKey(email);
                         String resStr = httpGet("/users/" + emailKey);
                         if (resStr == null || resStr.equals("null")) {
                             resStr = httpGet("/" + emailKey);
                         }
-                        if (resStr == null || resStr.equals("null")) {
-                            mainHandler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    logoutAction();
-                                    showToast("⚠️ Account deleted by Admin.");
-                                }
-                            });
-                            break;
-                        }
-                        JSONObject data = new JSONObject(resStr);
-                        long exp = data.optLong("expiryDate", 0);
-                        if (exp > 0 && System.currentTimeMillis() >= exp) {
-                            mainHandler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    stopAutoClicker();
-                                    syncUIState();
-                                    showToast("🚫 Plan Expired!");
-                                }
-                            });
+                        // Only act if valid response received (do not wipe session on temporary offline)
+                        if (resStr != null && !resStr.equals("null") && resStr.contains("{")) {
+                            JSONObject data = new JSONObject(resStr);
+                            long exp = data.optLong("expiryDate", 0);
+                            if (exp > 0 && System.currentTimeMillis() >= exp) {
+                                mainHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        stopAutoClicker();
+                                        syncUIState();
+                                        showToast("🚫 Plan Expired!");
+                                    }
+                                });
+                            }
                         }
                     } catch (InterruptedException e) {
                         break;
@@ -670,6 +663,7 @@ public class MainActivity extends Activity {
                 }
             }
         });
+        killSwitchThread.setPriority(Thread.MIN_PRIORITY);
         killSwitchThread.start();
     }
 
