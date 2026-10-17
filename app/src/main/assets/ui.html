@@ -861,17 +861,21 @@
         function togglePlatformSwitch(platform) {
             if (platform === "rapido") {
                 isRapidoEnabled = !isRapidoEnabled;
-                updatePillState("rapidoSwitchPill", "rapidoSwitchTxt", "rapidoSwitchKnob", isRapidoEnabled);
             } else if (platform === "ola") {
                 isOlaEnabled = !isOlaEnabled;
-                updatePillState("olaSwitchPill", "olaSwitchTxt", "olaSwitchKnob", isOlaEnabled);
             }
+            syncAllSwitchPills();
             sendToAutoJS("SAVE_PLATFORM_TOGGLE", {
                 isRapidoEnabled: isRapidoEnabled,
                 isOlaEnabled: isOlaEnabled
             });
         }
-
+        function syncAllSwitchPills() {
+            updatePillState("rapidoSwitchPill", "rapidoSwitchTxt", "rapidoSwitchKnob", isRapidoEnabled);
+            updatePillState("olaSwitchPill", "olaSwitchTxt", "olaSwitchKnob", isOlaEnabled);
+            updatePillState("dashRapidoPill", "dashRapidoTxt", "dashRapidoKnob", isRapidoEnabled);
+            updatePillState("dashOlaPill", "dashOlaTxt", "dashOlaKnob", isOlaEnabled);
+        }
         function saveAndApplyFilters() {
             var pc = document.getElementById("usePriceCb").checked, sc = document.getElementById("useSkipBelowMinCb").checked, ac = document.getElementById("useAreaCb").checked;
             if (pc && !serverAllowPrice) { sendToAutoJS("SHOW_TOAST", "Price filter is disabled by admin!"); return; }
@@ -950,13 +954,12 @@
                 bb.innerText = data.hasBattery ? "✓ ENABLED" : "ENABLE ➔";
             }
             if (data.isRapidoEnabled !== undefined) {
-                isRapidoEnabled = data.isRapidoEnabled !== false;
-                updatePillState("rapidoSwitchPill", "rapidoSwitchTxt", "rapidoSwitchKnob", isRapidoEnabled);
+                isRapidoEnabled = data.isRapidoEnabled === true || data.isRapidoEnabled === "true";
             }
             if (data.isOlaEnabled !== undefined) {
-                isOlaEnabled = data.isOlaEnabled !== false;
-                updatePillState("olaSwitchPill", "olaSwitchTxt", "olaSwitchKnob", isOlaEnabled);
+                isOlaEnabled = data.isOlaEnabled === true || data.isOlaEnabled === "true";
             }
+            syncAllSwitchPills();
             serverAllowPrice = data.allowPrice !== false; serverAllowArea = data.allowArea !== false;
             if (data.minPrice) document.getElementById("minPriceInput").value = data.minPrice;
             if (data.maxPrice) document.getElementById("maxPriceInput").value = data.maxPrice;
