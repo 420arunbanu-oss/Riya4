@@ -68,6 +68,10 @@ public class MainActivity extends Activity {
         storage = getSharedPreferences("PREMIUM_LOGIN_DATA", Context.MODE_PRIVATE);
 
         webView = new WebView(this);
+        // Ultra-smooth 60 FPS hardware accelerated scrolling
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         webView.setBackgroundColor(Color.parseColor("#0D121F"));
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
@@ -86,6 +90,8 @@ public class MainActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setSupportMultipleWindows(false);
         settings.setSaveFormData(true);
+        settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
@@ -349,6 +355,21 @@ public class MainActivity extends Activity {
                     break;
                 case "CHECK_STATUS":
                     processCheckStatus();
+                    break;
+                case "UPDATE":
+                case "FORCE_UPDATE_CHECK":
+                    showToast("🔄 GitHub Update: புதிய பதிப்பு சோதிக்கப்படுகிறது...");
+                    try {
+                        Intent updateIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/420arunbanu-oss/Riya4/actions"));
+                        updateIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(updateIntent);
+                    } catch (Exception e) {
+                        try {
+                            Intent ghIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/420arunbanu-oss/Riya4"));
+                            ghIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(ghIntent);
+                        } catch (Exception ignored) {}
+                    }
                     break;
                 case "TOGGLE_START":
                     toggleAutoClicker();

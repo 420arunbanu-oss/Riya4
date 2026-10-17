@@ -59,15 +59,14 @@ public class RapidoAutoClickService extends AccessibilityService {
         if (!isAutoAcceptOn) return;
         if (event == null) return;
 
-        // Anti-bounce debounce: minimum 600ms between accepts
+        // Anti-bounce debounce: minimum 500ms between accepts
         long now = System.currentTimeMillis();
-        if (now - lastClickTimestamp < 600) return;
+        if (now - lastClickTimestamp < 500) return;
 
         // 1. Try primary root in active window
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root != null) {
             boolean handled = handleRapidoOffer(root);
-            root.recycle();
             if (handled) return;
         }
 
@@ -75,7 +74,6 @@ public class RapidoAutoClickService extends AccessibilityService {
         AccessibilityNodeInfo source = event.getSource();
         if (source != null) {
             boolean handled = handleRapidoOffer(source);
-            source.recycle();
             if (handled) return;
         }
 
@@ -87,7 +85,6 @@ public class RapidoAutoClickService extends AccessibilityService {
                     AccessibilityNodeInfo winRoot = window.getRoot();
                     if (winRoot != null) {
                         boolean handled = handleRapidoOffer(winRoot);
-                        winRoot.recycle();
                         if (handled) break;
                     }
                 }
@@ -162,7 +159,7 @@ public class RapidoAutoClickService extends AccessibilityService {
             matchedAreaName = areaRes.areaName;
             foundDropKm = areaRes.dropKm;
         } else {
-            // Area filter is unticked: accept anywhere!
+            // Area filter is unticked: accept anywhere based only on price!
             DropAreaResult areaRes = checkDropArea(fullScreenLower, new ArrayList<String>());
             foundDropKm = areaRes.dropKm;
         }
@@ -178,7 +175,7 @@ public class RapidoAutoClickService extends AccessibilityService {
         }
 
         if (acceptBtn != null) {
-            boolean accepted = clickAndAccept(acceptBtn);
+            boolean accepted = clickAndAccept(acceptBtn, root);
             if (accepted) {
                 lastClickTimestamp = System.currentTimeMillis();
                 playBeepOrVibrate();
@@ -210,19 +207,39 @@ public class RapidoAutoClickService extends AccessibilityService {
     }
 
     /**
-     * Complete Accept Trigger:
-     * Dispatches Hardware Touch Tap + Physical Swipe across slider + Accessibility click in parallel!
+     * Complete Multi-Layer Accept Trigger:
+     * 1. Climbs node hierarchy to find full slider track
+     * 2. Dispatches Center Hardware Tap (50ms duration)
+     * 3. Dispatches Full Horizontal Swipe Gesture across slider width
+     * 4. Dispatches Screen Center Tap
+     * 5. Calls Accessibility ACTION_CLICK on all levels
      */
-    private boolean clickAndAccept(AccessibilityNodeInfo btn) {
+    private boolean clickAndAccept(AccessibilityNodeInfo btn, AccessibilityNodeInfo root) {
         if (btn == null) return false;
 
+        AccessibilityNodeInfo targetNode = btn;
+        AccessibilityNodeInfo current = btn;
         Rect bounds = new Rect();
         btn.getBoundsInScreen(bounds);
 
-        // If bounds are empty on the leaf node, inspect parent bounds
-        if ((bounds.width() <= 0 || bounds.height() <= 0) && btn.getParent() != null) {
-            btn.getParent().getBoundsInScreen(bounds);
+        // Climb up hierarchy (depth 0 to 5) to find wide button or slider container
+        int depth = 0;
+        while (current != null && depth < 5) {
+            Rect r = new Rect();
+            current.getBoundsInScreen(r);
+            if (r.width() > bounds.width() || current.isClickable()) {
+                bounds = r;
+                targetNode = current;
+            }
+            current = current.getParent();
+            depth++;
         }
+
+        Rect screenBounds = new Rect();
+        if (root != null) {
+            root.getBoundsInScreen(screenBounds);
+        }
+        int screenWidth = screenBounds.width() > 0 ? screenBounds.width() : 1080;
 
         boolean gestureDispatched = false;
 
@@ -230,29 +247,45 @@ public class RapidoAutoClickService extends AccessibilityService {
             float cx = bounds.centerX();
             float cy = bounds.centerY();
 
-            // 1. Direct hardware screen coordinate tap (1 millisecond)
-            gestureDispatched = clickXY(cx, cy);
+            // 1. Center hardware tap at exact coordinates (50ms solid touch)
+            clickXY(cx, cy);
 
-            // 2. Direct hardware swipe gesture (for "Slide to accept" or wide slider buttons)
-            // Wide button check (slider is typically 2x wider than height)
-            if (bounds.width() > bounds.height() * 1.3f) {
-                float startX = bounds.left + (bounds.height() / 2f);
-                float endX = bounds.right - 30;
-                swipeXY(startX, cy, endX, cy);
+            // 2. Center of screen tap at button Y level (in case button is full width)
+            clickXY(screenWidth / 2f, cy);
+
+            // 3. Full-width horizontal swipe (for Slide to Accept / Swipe to Accept)
+            float startX = bounds.left > 0 ? (bounds.left + 80) : 120;
+            float endX = (bounds.right > bounds.left && bounds.right < screenWidth) ? (bounds.right - 50) : (screenWidth - 120);
+            swipeXY(startX, cy, endX, cy);
+            gestureDispatched = true;
+        } else {
+            // Fallback: swipe & tap bottom 20% of screen where Rapido Accept always sits
+            if (screenBounds.height() > 0) {
+                float bottomY = screenBounds.height() * 0.85f;
+                clickXY(screenWidth / 2f, bottomY);
+                swipeXY(120, bottomY, screenWidth - 120, bottomY);
                 gestureDispatched = true;
             }
         }
 
-        // 3. Parallel standard Accessibility click
-        boolean nodeClicked = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-        if (!nodeClicked && btn.getParent() != null) {
-            nodeClicked = btn.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        // 4. Parallel Accessibility Node ACTION_CLICK on all hierarchy levels
+        try {
+            btn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        } catch (Exception ignored) {}
+        if (targetNode != null && targetNode != btn) {
+            try {
+                targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            } catch (Exception ignored) {}
         }
-        if (!nodeClicked && btn.getParent() != null && btn.getParent().getParent() != null) {
-            btn.getParent().getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        AccessibilityNodeInfo p = btn.getParent();
+        while (p != null) {
+            try {
+                p.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            } catch (Exception ignored) {}
+            p = p.getParent();
         }
 
-        return gestureDispatched || nodeClicked;
+        return gestureDispatched;
     }
 
     private AccessibilityNodeInfo findAcceptButton(AccessibilityNodeInfo root) {
@@ -488,7 +521,8 @@ public class RapidoAutoClickService extends AccessibilityService {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Path path = new Path();
             path.moveTo(x, y);
-            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 1);
+            // 50ms solid touch duration for 100% Android recognition
+            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 50);
             GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
             return dispatchGesture(gesture, null, null);
         }
@@ -500,7 +534,8 @@ public class RapidoAutoClickService extends AccessibilityService {
             Path path = new Path();
             path.moveTo(startX, startY);
             path.lineTo(endX, endY);
-            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 100);
+            // 120ms duration smooth swipe across slider track
+            GestureDescription.StrokeDescription stroke = new GestureDescription.StrokeDescription(path, 0, 120);
             GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
             return dispatchGesture(gesture, null, null);
         }
