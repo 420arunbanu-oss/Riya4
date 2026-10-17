@@ -374,6 +374,15 @@ public class MainActivity extends Activity {
                 case "TOGGLE_START":
                     toggleAutoClicker();
                     break;
+                case "SAVE_PLATFORM_TOGGLE":
+                    if (data != null) {
+                        storage.edit()
+                            .putBoolean("isRapidoEnabled", data.optBoolean("isRapidoEnabled", true))
+                            .putBoolean("isOlaEnabled", data.optBoolean("isOlaEnabled", true))
+                            .apply();
+                    }
+                    syncUIState();
+                    break;
                 case "SAVE_FILTERS":
                     saveFilters(data);
                     break;

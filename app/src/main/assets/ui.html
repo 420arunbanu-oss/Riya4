@@ -854,6 +854,24 @@
             setAreaSelected(name, checked); renderCustomAreas();
         }
 
+        
+        var isRapidoEnabled = true;
+        var isOlaEnabled = true;
+
+        function togglePlatformSwitch(platform) {
+            if (platform === "rapido") {
+                isRapidoEnabled = !isRapidoEnabled;
+                updatePillState("rapidoSwitchPill", "rapidoSwitchTxt", "rapidoSwitchKnob", isRapidoEnabled);
+            } else if (platform === "ola") {
+                isOlaEnabled = !isOlaEnabled;
+                updatePillState("olaSwitchPill", "olaSwitchTxt", "olaSwitchKnob", isOlaEnabled);
+            }
+            sendToAutoJS("SAVE_PLATFORM_TOGGLE", {
+                isRapidoEnabled: isRapidoEnabled,
+                isOlaEnabled: isOlaEnabled
+            });
+        }
+
         function saveAndApplyFilters() {
             var pc = document.getElementById("usePriceCb").checked, sc = document.getElementById("useSkipBelowMinCb").checked, ac = document.getElementById("useAreaCb").checked;
             if (pc && !serverAllowPrice) { sendToAutoJS("SHOW_TOAST", "Price filter is disabled by admin!"); return; }
