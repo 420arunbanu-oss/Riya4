@@ -731,6 +731,8 @@ public class MainActivity extends Activity {
         ed.putBoolean("usePriceFilter", data.optBoolean("usePriceFilter"));
         ed.putBoolean("useSkipBelowMin", data.optBoolean("useSkipBelowMin"));
         ed.putBoolean("useAreaFilter", data.optBoolean("useAreaFilter"));
+        ed.putBoolean("isRapidoEnabled", data.optBoolean("isRapidoEnabled", true));
+        ed.putBoolean("isOlaEnabled", data.optBoolean("isOlaEnabled", true));
         ed.putString("customAreaSearchStr", data.optString("customAreaSearchStr"));
         ed.putInt("minPrice", data.optInt("minPrice", 40));
         ed.putInt("maxPrice", data.optInt("maxPrice", 10000));
@@ -807,6 +809,8 @@ public class MainActivity extends Activity {
                     p.put("usePriceFilter", storage.getBoolean("usePriceFilter", false));
                     p.put("useSkipBelowMin", storage.getBoolean("useSkipBelowMin", false));
                     p.put("useAreaFilter", storage.getBoolean("useAreaFilter", false));
+                    p.put("isRapidoEnabled", storage.getBoolean("isRapidoEnabled", true));
+                    p.put("isOlaEnabled", storage.getBoolean("isOlaEnabled", true));
                     p.put("minPrice", storage.getInt("minPrice", 40));
                     p.put("maxPrice", storage.getInt("maxPrice", 10000));
 

@@ -22,7 +22,7 @@ import java.util.Calendar;
 import java.util.List;
 
 /**
- * Ultra-Fast Zero-Lag Rapido Auto Click Engine
+ * High-Speed Zero-Lag Dual Engine (Rapido + Ola)
  * 100% Non-blocking, 0ms ANR-free execution using native indexed node bounds tap & swipe.
  */
 public class RapidoAutoClickService extends AccessibilityService {
@@ -67,7 +67,34 @@ public class RapidoAutoClickService extends AccessibilityService {
         AccessibilityNodeInfo rootNode = getRootInActiveWindow();
         if (rootNode == null) return;
 
-        boolean accepted = scanAndTriggerAccept(rootNode);
+        CharSequence pkgSeq = event.getPackageName();
+        String packageName = pkgSeq != null ? pkgSeq.toString().toLowerCase() : "";
+
+        boolean isRapidoOn = storage.getBoolean("isRapidoEnabled", true);
+        boolean isOlaOn = storage.getBoolean("isOlaEnabled", true);
+
+        boolean accepted = false;
+
+        // 1. If Rapido package active and Rapido switch is ON
+        if (isRapidoOn && (packageName.contains("rapido") || isRapidoScreen(rootNode))) {
+            accepted = handleRapidoOffer(rootNode);
+        }
+
+        // 2. If Ola package active and Ola switch is ON
+        if (!accepted && isOlaOn && (packageName.contains("ola") || packageName.contains("olacabs") || isOlaScreen(rootNode))) {
+            accepted = handleOlaOffer(rootNode);
+        }
+
+        // 3. Fallback check based on active platform switches
+        if (!accepted) {
+            if (isRapidoOn) {
+                accepted = handleRapidoOffer(rootNode);
+            }
+            if (!accepted && isOlaOn) {
+                accepted = handleOlaOffer(rootNode);
+            }
+        }
+
         if (accepted) {
             lastClickTime = now;
             vibrateAndBeep();
@@ -76,17 +103,17 @@ public class RapidoAutoClickService extends AccessibilityService {
     }
 
     /**
-     * Exact ultra-fast scan & accept method
+     * Rapido Offer Scan & Trigger
      */
-    private boolean scanAndTriggerAccept(AccessibilityNodeInfo root) {
+    private boolean handleRapidoOffer(AccessibilityNodeInfo root) {
         if (root == null) return false;
 
-        // 1. Apply Driver Price & Area Filters first
+        // Apply Price & Area Filters first
         if (!passesFilters(root)) {
             return false;
         }
 
-        // 2. Direct Accept Text Search (Native indexed search - 0.1ms)
+        // Direct Text Candidates Search (0.1ms native indexed)
         String[] textCandidates = new String[] {
                 "Accept", "ACCEPT", "accept",
                 "ஏற்றுக்கொள்", "स्वीकार करें",
@@ -107,7 +134,7 @@ public class RapidoAutoClickService extends AccessibilityService {
             }
         }
 
-        // 3. Common Rapido Captain View IDs
+        // View ID Candidates Search
         String[] idCandidates = new String[] {
                 "com.rapido.captain:id/btn_accept",
                 "com.rapido.captain:id/accept_order_btn",
@@ -131,7 +158,7 @@ public class RapidoAutoClickService extends AccessibilityService {
             }
         }
 
-        // 4. Rupee Symbol ₹ detection - find Accept in active offer card
+        // Rupee Symbol ₹ detection - find Accept in active offer card
         List<AccessibilityNodeInfo> rupeeNodes = root.findAccessibilityNodeInfosByText("₹");
         if (rupeeNodes != null && !rupeeNodes.isEmpty()) {
             for (AccessibilityNodeInfo rNode : rupeeNodes) {
@@ -145,6 +172,54 @@ public class RapidoAutoClickService extends AccessibilityService {
                     }
                     parent = parent.getParent();
                     depth++;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Ola Offer Scan & Trigger
+     */
+    private boolean handleOlaOffer(AccessibilityNodeInfo root) {
+        if (root == null) return false;
+
+        // Apply Price & Area Filters first
+        if (!passesFilters(root)) {
+            return false;
+        }
+
+        // Direct Text Candidates for Ola
+        String[] acceptCandidates = new String[] {
+                "ACCEPT", "Accept", "accept",
+                "ஏற்றுக்கொள்", "स्वीकार करें",
+                "Tap to accept", "Accept Ride", "ACCEPT RIDE", "Slide to accept"
+        };
+        for (String label : acceptCandidates) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label);
+            if (nodes != null) {
+                for (AccessibilityNodeInfo node : nodes) {
+                    if (clickByBoundsXY(node)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Common Ola View IDs
+        String[] idCandidates = new String[] {
+                "com.olacabs.customer:id/btn_accept",
+                "com.olacabs.customer:id/accept_button",
+                "btn_accept", "accept_button", "accept"
+        };
+        for (String id : idCandidates) {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(id);
+            if (nodes != null) {
+                for (AccessibilityNodeInfo node : nodes) {
+                    if (clickByBoundsXY(node)) {
+                        return true;
+                    }
                 }
             }
         }
@@ -226,6 +301,22 @@ public class RapidoAutoClickService extends AccessibilityService {
             return dispatchGesture(gesture, null, null);
         }
         return false;
+    }
+
+    private boolean isRapidoScreen(AccessibilityNodeInfo root) {
+        if (root == null) return false;
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText("Rapido");
+        if (nodes != null && !nodes.isEmpty()) return true;
+        List<AccessibilityNodeInfo> cNodes = root.findAccessibilityNodeInfosByText("Captain");
+        return cNodes != null && !cNodes.isEmpty();
+    }
+
+    private boolean isOlaScreen(AccessibilityNodeInfo root) {
+        if (root == null) return false;
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText("Ola");
+        if (nodes != null && !nodes.isEmpty()) return true;
+        List<AccessibilityNodeInfo> pNodes = root.findAccessibilityNodeInfosByText("Partner");
+        return pNodes != null && !pNodes.isEmpty();
     }
 
     /**

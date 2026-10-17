@@ -592,6 +592,35 @@
 
     <div id="filterView" class="hidden">
         <div class="card card-highlight flex-between"><div><div style="font-weight:bold; font-size:15px; color:#ffffff;">⚙️ FILTER SETTINGS (v48.0)</div><div style="color:#38bdf8; font-size:10px;">Simple Price + Custom Area</div></div><button class="btn-glow-blue" style="width:auto; padding:6px 14px;" onclick="showDashboardView()">⬅️ BACK</button></div>
+
+        <div class="card" style="border: 1px solid rgba(56, 189, 248, 0.4); background: linear-gradient(135deg, #0d1a33, #172445); margin-top: 10px;">
+            <div style="font-weight:bold; font-size:13px; color:#ffffff; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+                <span>🚗 PLATFORM SWITCHES</span>
+                <span style="font-size:10px; color:#38bdf8;">Rapido + Ola</span>
+            </div>
+            <div class="grid-2">
+                <!-- Rapido Switch -->
+                <div class="control-box" style="padding:12px; background:linear-gradient(135deg, #0a1120, #111a30);">
+                    <div style="font-weight:bold; font-size:12px; color:#facc15; margin-bottom:8px;">⚡ Rapido Captain</div>
+                    <div id="rapidoSwitchPill" class="toggle-pill toggle-pill-on" onclick="togglePlatformSwitch('rapido')">
+                        <span id="rapidoSwitchTxt" class="toggle-text text-on">ON</span>
+                        <span id="rapidoSwitchKnob" class="toggle-knob knob-on"></span>
+                    </div>
+                </div>
+                <!-- Ola Switch -->
+                <div class="control-box" style="padding:12px; background:linear-gradient(135deg, #0a1120, #111a30);">
+                    <div style="font-weight:bold; font-size:12px; color:#34d399; margin-bottom:8px;">🚕 Ola Partner</div>
+                    <div id="olaSwitchPill" class="toggle-pill toggle-pill-on" onclick="togglePlatformSwitch('ola')">
+                        <span id="olaSwitchTxt" class="toggle-text text-on">ON</span>
+                        <span id="olaSwitchKnob" class="toggle-knob knob-on"></span>
+                    </div>
+                </div>
+            </div>
+            <div style="color:#94a3b8; font-size:10px; margin-top:8px;">
+                💡 <b>Green = ON</b> (Auto-accept orders) | <b>Red = OFF</b> (Ignore orders).
+            </div>
+        </div>
+
         <div class="card"><label class="checkbox-container"><input type="checkbox" id="usePriceCb" onclick="checkPriceCheckbox(this)"><span style="font-weight:bold; color:#10b981; font-size:14px;">💰 Enable Price Filter</span></label><div class="grid-2" style="margin-top:10px;"><div><span style="color:#94a3b8; font-size:10px; font-weight:bold;">Min Price (Rs.):</span><input type="number" id="minPriceInput" value="40"></div><div><span style="color:#94a3b8; font-size:10px; font-weight:bold;">Max Price (Rs.):</span><input type="number" id="maxPriceInput" value="10000"></div></div><label class="checkbox-container" style="margin-top:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;"><input type="checkbox" id="useSkipBelowMinCb"><span style="font-weight:bold; color:#f43f5e; font-size:13px;">🚫 Skip Orders Below Min Price</span></label></div>
         <div class="card" style="border:1px solid rgba(56,189,248,0.25);"><div class="flex-between"><label class="checkbox-container" style="margin:0;"><input type="checkbox" id="useAreaCb" onclick="toggleAreaCb(this)"><span style="font-weight:bold; color:#38bdf8; font-size:14px;">📍 Enable Area Filter</span></label><button class="btn-green" style="width:48px; min-width:48px; padding:8px 0; font-size:22px; line-height:1;" onclick="openAddAreaBox()">＋</button></div><div style="color:#94a3b8; font-size:10px; margin-top:7px;">Select only the destination areas you want.</div><div class="flex" style="margin-top:9px; gap:8px;"><button class="btn-glow-blue" style="flex:1; padding:9px 6px; font-size:11px;" onclick="selectAllAreas()">✓ ALL SELECT</button><button class="btn-red" style="flex:1; padding:9px 6px; font-size:11px; font-weight:bold;" onclick="removeAllAreas()">✕ ALL REMOVE</button></div><div id="areaChecklist" style="margin-top:10px; max-height:360px; overflow-y:auto; padding-right:2px;"></div></div>
         <div id="addAreaModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;"><div style="width:100%;max-width:360px;background:#0d1527;border:1px solid rgba(16,185,129,.45);border-radius:18px;padding:18px;box-sizing:border-box;"><div style="font-size:16px;font-weight:900;color:#fff;">＋ ADD NEW AREA</div><div style="color:#94a3b8;font-size:11px;margin:6px 0 12px;">Type the area name and tap SAVE.</div><input id="newAreaNameInput" type="text" placeholder="Example: Saravanampatti" style="margin-top:0;"><div class="flex" style="gap:8px;margin-top:10px;"><button class="btn-glow-blue" style="flex:1;padding:11px;" onclick="closeAddAreaBox()">CANCEL</button><button class="btn-green" style="flex:1;padding:11px;" onclick="saveNewArea()">✓ SAVE</button></div></div></div>
@@ -831,7 +860,7 @@
             if (ac && !serverAllowArea) { sendToAutoJS("SHOW_TOAST", "Area filter is disabled by admin!"); return; }
             if (ac && savedSelectedAreas.length === 0) { sendToAutoJS("SHOW_TOAST", "Select at least one area using the tick box or +"); return; }
             sendToAutoJS("SAVE_FILTERS", {
-                usePriceFilter: pc, useSkipBelowMin: sc, useAreaFilter: ac, useSearchAreaFilter: false,
+                isRapidoEnabled: isRapidoEnabled, isOlaEnabled: isOlaEnabled, usePriceFilter: pc, useSkipBelowMin: sc, useAreaFilter: ac, useSearchAreaFilter: false,
                 customAreaSearchStr: savedSelectedAreas.join(","), customAreas: savedCustomAreas,
                 minPrice: parseInt(document.getElementById("minPriceInput").value) || 40,
                 maxPrice: parseInt(document.getElementById("maxPriceInput").value) || 10000,
@@ -901,6 +930,14 @@
                 bo.innerText = data.hasOverlay ? "✓ ENABLED" : "ENABLE ➔";
                 bb.className = data.hasBattery ? "perm-btn perm-btn-active" : "perm-btn";
                 bb.innerText = data.hasBattery ? "✓ ENABLED" : "ENABLE ➔";
+            }
+            if (data.isRapidoEnabled !== undefined) {
+                isRapidoEnabled = data.isRapidoEnabled !== false;
+                updatePillState("rapidoSwitchPill", "rapidoSwitchTxt", "rapidoSwitchKnob", isRapidoEnabled);
+            }
+            if (data.isOlaEnabled !== undefined) {
+                isOlaEnabled = data.isOlaEnabled !== false;
+                updatePillState("olaSwitchPill", "olaSwitchTxt", "olaSwitchKnob", isOlaEnabled);
             }
             serverAllowPrice = data.allowPrice !== false; serverAllowArea = data.allowArea !== false;
             if (data.minPrice) document.getElementById("minPriceInput").value = data.minPrice;
